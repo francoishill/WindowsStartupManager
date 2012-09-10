@@ -13,7 +13,8 @@
 		ShowActivated='False'
 		SizeChanged='Window_SizeChanged'
 		PreviewMouseDoubleClick='Window_PreviewMouseDoubleClick'
-		Closing='Window_Closing'>
+		Closing='Window_Closing'
+		PreviewMouseWheel='Window_PreviewMouseWheel'>
 	<Window.Resources>
 		<local:ApplicationStatusToBrushConverter x:Key='applicationStatusToBrushConverter' />
 	</Window.Resources>

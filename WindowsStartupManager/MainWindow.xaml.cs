@@ -301,6 +301,27 @@ namespace WindowsStartupManager
 			}
 			catch { }
 		}
+
+		ScaleTransform scaleTransform = new ScaleTransform(1, 1);
+		private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+		{
+			if (mainDockPanel.LayoutTransform != smallScale)
+			{
+				e.Handled = true;
+				mainDockPanel.LayoutTransform = scaleTransform;
+				if (e.Delta > 0)//Mouse wheel up
+				{
+					scaleTransform.ScaleX += 0.1;
+					scaleTransform.ScaleY += 0.1;
+				}
+				else if (e.Delta < 0)//Mouse wheel down
+				{
+					scaleTransform.ScaleX -= 0.1;
+					scaleTransform.ScaleY -= 0.1;
+				}
+				this.UpdateLayout();
+			}
+		}
 	}
 
 	public class ApplicationDetails : INotifyPropertyChanged
