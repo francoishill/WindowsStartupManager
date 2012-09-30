@@ -155,8 +155,8 @@ namespace WindowsStartupManager
 		{
 			listAlreadyPopulatedAtLeastOnce = true;
 			Applications.Clear();
-			if (OnlineSettings.ApplicationManagerSettings.Instance.RunCommands != null)
-				foreach (var comm in OnlineSettings.ApplicationManagerSettings.Instance.RunCommands)
+			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
+				foreach (var comm in SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
 					Applications.Add(new ApplicationDetails(comm));
 			listBox1.ItemsSource = Applications;
 			labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
@@ -217,15 +217,15 @@ namespace WindowsStartupManager
 
 		private void Button_Click_1(object sender, RoutedEventArgs e)
 		{
-			var commands = OnlineSettings.ApplicationManagerSettings.Instance.RunCommands;
+			var commands = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
 			if (commands == null)
-				commands = new List<OnlineSettings.ApplicationManagerSettings.RunCommand>();
+				commands = new List<SettingsSimple.ApplicationManagerSettings.RunCommand>();
 			else
 				commands = commands.Clone();
 
 			List<string> currentFullpathsWithArgs = commands
 				.Select(
-					com => (com.PathType == OnlineSettings.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
+					com => (com.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
 					? com.AppPath
 					: ApplicationDetails.GetApplicationFullPathFromOwnAppname(com.AppPath)) + (com.CommandlineArguments ?? ""))
 				.Where(s => !string.IsNullOrWhiteSpace(s))
@@ -250,7 +250,7 @@ namespace WindowsStartupManager
 						if (value == null || value.IndexOf(thisAppExeName, StringComparison.InvariantCultureIgnoreCase) != -1)
 							continue;//Skip if it is this application
 
-						var runcom = OnlineSettings.ApplicationManagerSettings.RunCommand.CreateFromFullCommandline(
+						var runcom = SettingsSimple.ApplicationManagerSettings.RunCommand.CreateFromFullCommandline(
 							value, valname);
 						if (runcom != null)
 						{
@@ -274,7 +274,7 @@ namespace WindowsStartupManager
 								UserMessages.ShowWarningMessage("Exception trying to delete registry key: " + exc.Message);
 							}
 
-							string tmpFullpathWithArgs = (runcom.PathType == OnlineSettings.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
+							string tmpFullpathWithArgs = (runcom.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
 								? runcom.AppPath
 								: ApplicationDetails.GetApplicationFullPathFromOwnAppname(runcom.AppPath)) + (runcom.CommandlineArguments ?? "");
 							if (!currentFullpathsWithArgs.Contains(tmpFullpathWithArgs, StringComparer.InvariantCultureIgnoreCase))
@@ -289,7 +289,7 @@ namespace WindowsStartupManager
 					}
 				}
 			}
-			OnlineSettings.ApplicationManagerSettings.Instance.RunCommands = commands;
+			SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = commands;
 			PopulateApplicationsList();
 		}
 
@@ -326,7 +326,7 @@ namespace WindowsStartupManager
 
 	public class ApplicationDetails : INotifyPropertyChanged
 	{
-		public OnlineSettings.ApplicationManagerSettings.RunCommand Command;
+		public SettingsSimple.ApplicationManagerSettings.RunCommand Command;
 		public enum ApplicationStatusses { Running, NotResponding, NotRunning, RanSuccessfullyButClosedAgain, InvalidPath };
 		public string ApplicationName { get; private set; }
 		public string DisplayName { get; private set; }
@@ -335,18 +335,18 @@ namespace WindowsStartupManager
 		public string ApplicationFullPath { get; private set; }
 		public string ApplicationArguments { get; private set; }
 
-		public ApplicationDetails(OnlineSettings.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
+		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
 		{
 			this.Command = command;
 			string path = command.AppPath;
 			string appname = 
-				command.PathType == OnlineSettings.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
+				command.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
 				? Path.GetFileNameWithoutExtension(path)
 				: command.AppPath;//It is RunCommand.PathTypes.OwnApp name
 
 			this.ApplicationName = appname;
 			this.ApplicationStatus = ApplicationStatusses.NotRunning;
-			if (command.PathType == OnlineSettings.ApplicationManagerSettings.RunCommand.PathTypes.FullPath)
+			if (command.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath)
 				this.ApplicationFullPath = path;
 			else
 				this.ApplicationFullPath = GetApplicationFullPathFromOwnAppname(this.ApplicationName);
@@ -439,6 +439,8 @@ namespace WindowsStartupManager
 					{
 						if (successfullyRanOnce && !startAgainIfAlreadyRanAndClosed)
 							return;
+
+						Environment.CurrentDirectory = Path.GetDirectoryName(this.ApplicationFullPath);
 						Process proc = null;
 						if (!string.IsNullOrWhiteSpace(this.ApplicationArguments))
 							proc = Process.Start(this.ApplicationFullPath, this.ApplicationArguments);
