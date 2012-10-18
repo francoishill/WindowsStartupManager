@@ -29,11 +29,14 @@ namespace WindowsStartupManager
 	public partial class MainWindow : Window
 	{
 		public const string cThisAppName = "WindowsStartupManager";
+		private readonly TimeSpan DelaySecondsBetweenApps = TimeSpan.FromSeconds(2);//TimeSpan.FromMilliseconds(500);
+		private string originalPauseButtonContent;
 		ObservableCollection<ApplicationDetails> Applications = new ObservableCollection<ApplicationDetails>();
 
 		public MainWindow()
 		{
 			InitializeComponent();
+			originalPauseButtonContent = buttonPauseStarting.Content.ToString();
 			wmicpus = new WqlObjectQuery("SELECT * FROM Win32_Processor");
 			cpus = new ManagementObjectSearcher(wmicpus);
 		}
@@ -66,8 +69,19 @@ namespace WindowsStartupManager
 			}
 		}
 		bool skipLoggingCpuUsage = false;
+		int minimumCPUrunningSeconds = 30;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
+			labelDelayBetweenApps.Content = "Delay after each app = "
+				+ DelaySecondsBetweenApps.TotalMilliseconds + "ms";
+
+			if (IsSystemRunningMinimumDuration())
+				labelStatus.Content = "CPU already running more than "
+					+ minimumCPUrunningSeconds + " seconds, applications to be started soon";
+			else
+				labelStatus.Content = "Waiting for CPU to be running more than "
+					+ minimumCPUrunningSeconds + " seconds (currently " + GetCPUrunningDuration().TotalSeconds + " seconds)";
+
 			//Timer to populate the list with applications
 			timerToPopulateList =
 				new Timer(delegate
@@ -87,23 +101,22 @@ namespace WindowsStartupManager
 				{
 					Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
 					if (!listAlreadyPopulatedAtLeastOnce)
-						PopulateApplicationsList();
-
-					if (DateTime.Now.Subtract(systemStartupTime).TotalSeconds > 30)//Check system already running a while
-						if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
+						Dispatcher.Invoke((Action)delegate
 						{
-							//foreach (var app in Applications)
-							for (int i = 0; i < Applications.Count; i++)
-							{
-								Applications[i].StartNow_NotAllowMultipleInstances(false);
-								if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
-									break;
-							}
-						}
+							PopulateApplicationsList();
+						});
+
+					if (IsSystemRunningMinimumDuration())//Check system already running a while
+						Dispatcher.Invoke((Action)delegate
+					 {
+						 StartAllApplications();
+					 });
+					/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
+						StartAllApplications();*/
 				},
 				null,
-				TimeSpan.FromSeconds(20),
-				TimeSpan.FromSeconds(30));
+				TimeSpan.FromSeconds(0),
+				TimeSpan.FromSeconds(5));
 
 			timerToLogCpuUsage = new Timer(delegate
 				{
@@ -120,14 +133,56 @@ namespace WindowsStartupManager
 						if (DateTime.Now.Subtract(systemStartupTime).TotalMinutes > 20)
 						{
 							skipLoggingCpuUsage = true;
-							if (UserMessages.Confirm("Cpu usages was logged, open the log file?"))
-								Process.Start("notepad", logfile);
+							//if (UserMessages.Confirm("Cpu usages was logged, open the log file?"))
+							//    Process.Start("notepad", logfile);
 						}
 					}
 				},
 				null,
 				TimeSpan.FromSeconds(0),
 				TimeSpan.FromSeconds(2));
+		}
+
+		private TimeSpan GetCPUrunningDuration()
+		{
+			return DateTime.Now.Subtract(systemStartupTime);
+		}
+
+		private bool IsSystemRunningMinimumDuration()
+		{
+			return GetCPUrunningDuration().TotalSeconds > minimumCPUrunningSeconds;
+		}
+
+		bool isbusyStarting = false;
+		private void StartAllApplications()
+		{
+			if (isbusyStarting)
+				return;
+
+			isbusyStarting = true;
+			try
+			{
+				//foreach (var app in Applications)
+				for (int i = 0; i < Applications.Count; i++)
+				{
+					var app = Applications[i];
+					labelStatus.Content = "Starting \"" + app.DisplayName + "\", waiting " + DelaySecondsBetweenApps.TotalSeconds + " seconds";
+					labelStatus.UpdateLayout();
+					bool? startupSuccess
+						= app.StartNow_NotAllowMultipleInstances(false);
+					while (isPaused)
+						WPFHelper.DoEvents();
+					this.UpdateLayout();
+					if (startupSuccess == true)//Was started now (not started previously, did not fail)
+						Thread.Sleep(DelaySecondsBetweenApps);
+					//if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
+					//    break;
+				}
+			}
+			finally
+			{
+				isbusyStarting = false;
+			}
 		}
 
 		private float GetMaxCpuUsage()
@@ -215,7 +270,7 @@ namespace WindowsStartupManager
 				mainDockPanel.LayoutTransform = originalScale;
 		}
 
-		private void Button_Click_1(object sender, RoutedEventArgs e)
+		private void buttonGetFromRegistry_Click(object sender, RoutedEventArgs e)
 		{
 			var commands = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
 			if (commands == null)
@@ -293,6 +348,121 @@ namespace WindowsStartupManager
 			PopulateApplicationsList();
 		}
 
+		private void buttonGetFromStartupFolder_Click(object sender, RoutedEventArgs e)
+		{
+			var commands = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
+			if (commands == null)
+				commands = new List<SettingsSimple.ApplicationManagerSettings.RunCommand>();
+			else
+				commands = commands.Clone();
+
+			List<string> currentFullpathsWithArgs = commands
+				.Select(
+					com => (com.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
+					? com.AppPath
+					: ApplicationDetails.GetApplicationFullPathFromOwnAppname(com.AppPath)) + (com.CommandlineArguments ?? ""))
+				.Where(s => !string.IsNullOrWhiteSpace(s))
+				.ToList();
+
+			string thisAppExeName = Path.GetFileName(Assembly.GetExecutingAssembly().Location);
+
+			var files = Directory.GetFiles(Environment.GetFolderPath(Environment.SpecialFolder.Startup));
+			var folders = Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.Startup));
+			foreach (var actualShortcutFile in files.Concat(folders))
+			{
+				if (actualShortcutFile.EndsWith("desktop.ini", StringComparison.InvariantCultureIgnoreCase))
+					continue;
+				string shortcutPath;
+				string shortcutArguments;
+				string displayName;
+				if (WindowsInterop.GetShortcutTargetFile(actualShortcutFile, out shortcutPath, out shortcutArguments))
+				{
+					SettingsSimple.ApplicationManagerSettings.RunCommand runcom;
+
+					shortcutPath = shortcutPath.Trim('\"');
+					displayName = Path.GetFileNameWithoutExtension(actualShortcutFile);
+					if (string.IsNullOrWhiteSpace(shortcutArguments)
+						&& File.Exists(shortcutPath)
+						&& !Path.GetExtension(shortcutPath).Equals(".exe", StringComparison.InvariantCultureIgnoreCase))
+					{
+						string fileExtension = Path.GetExtension(shortcutPath);
+						bool isBatchFile = fileExtension.Equals(".bat", StringComparison.InvariantCultureIgnoreCase);
+						shortcutArguments = (isBatchFile ? "/C " : "") + "\"" + shortcutPath.Trim('\"') + "\"";
+						shortcutPath = isBatchFile ? "cmd.exe" : "explorer.exe";
+					}
+					else if (string.IsNullOrWhiteSpace(shortcutArguments)
+						&& Directory.Exists(shortcutPath))
+					{
+						shortcutArguments = "\"" + shortcutPath.Trim('\"') + "\"";
+						shortcutPath = "explorer.exe";
+					}
+					else
+						shortcutPath = "\"" + shortcutPath + "\"";
+					runcom = SettingsSimple.ApplicationManagerSettings.RunCommand.CreateFromFullCommandline(
+						shortcutPath + (!string.IsNullOrWhiteSpace(shortcutArguments) ? " " + shortcutArguments : ""),
+						displayName);
+					if (runcom != null)
+					{
+						//Delete file
+						try
+						{
+							bool isFile = File.Exists(actualShortcutFile);
+							bool isDir = Directory.Exists(actualShortcutFile);
+							if (isFile)
+								File.Delete(actualShortcutFile);
+							else if (isDir)
+								Directory.Delete(actualShortcutFile);
+							Logging.LogWarningToFile(
+								"Deleted shortcut file: " + actualShortcutFile,
+								Logging.ReportingFrequencies.Daily,
+								cThisAppName);
+						}
+						catch (Exception exc)
+						{
+							Logging.LogErrorToFile(
+								"Unable to delete file: " + actualShortcutFile + ", error: " + exc.Message,
+								Logging.ReportingFrequencies.Daily,
+								cThisAppName);
+							UserMessages.ShowErrorMessage(exc.Message);
+						}
+
+						string tmpFullpathWithArgs = (runcom.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath
+								? runcom.AppPath
+								: ApplicationDetails.GetApplicationFullPathFromOwnAppname(runcom.AppPath)) + (runcom.CommandlineArguments ?? "");
+						if (!currentFullpathsWithArgs.Contains(tmpFullpathWithArgs, StringComparer.InvariantCultureIgnoreCase))
+						{
+							currentFullpathsWithArgs.Add(tmpFullpathWithArgs);
+							commands.Add(runcom);
+						}
+						else
+							UserMessages.ShowWarningMessage("Cannot add startup item from Startup folder, item already in list:"
+								+ Environment.NewLine + runcom.AppPath);
+					}
+				}
+			}
+			SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = commands;
+			PopulateApplicationsList();
+		}
+
+		private bool isPaused = false;
+		private void buttonPauseStarting_Click(object sender, RoutedEventArgs e)
+		{
+			if (buttonPauseStarting.Content.ToString() == originalPauseButtonContent)
+			{
+				isPaused = true;
+				labelStatus.Content = "Paused, click resume to continue";
+				buttonPauseStarting.Content = "Resume starting apps";
+				this.UpdateLayout();
+			}
+			else
+			{
+				isPaused = false;
+				labelStatus.Content = "Resumed starting apps";
+				buttonPauseStarting.Content = originalPauseButtonContent;
+				this.UpdateLayout();
+			}
+		}
+
 		private void Window_Closing(object sender, CancelEventArgs e)
 		{
 			try
@@ -350,7 +520,7 @@ namespace WindowsStartupManager
 				this.ApplicationFullPath = path;
 			else
 				this.ApplicationFullPath = GetApplicationFullPathFromOwnAppname(this.ApplicationName);
-			UpdateApplicationRunningStatus();
+			UpdateApplicationRunningStatus(false);
 			this.ApplicationArguments = command.CommandlineArguments;//string.Join(" ", command.CommandlineArguments.Select(c => "\"" + c.Trim('\"') + "\""));
 
 			this.DisplayName = command.DisplayName;
@@ -383,7 +553,7 @@ namespace WindowsStartupManager
 			return fullpathOrOwnAppname;
 		}
 
-		private void UpdateApplicationRunningStatus()
+		private void UpdateApplicationRunningStatus(bool markExplorerAsRunning)
 		{
 			Process proc = GetProcessForApplication();
 			if (proc == null)
@@ -397,7 +567,8 @@ namespace WindowsStartupManager
 			}
 			else
 			{
-				this.ApplicationStatus = ApplicationStatusses.Running;
+				if (markExplorerAsRunning || !IsExplorer && !IsCmd)
+					this.ApplicationStatus = ApplicationStatusses.Running;
 				//TODO: Skip updating fullpath for now
 				//this.ApplicationFullPath = proc.MainModule.FileName;
 			}
@@ -405,6 +576,9 @@ namespace WindowsStartupManager
 			OnPropertyChanged("ApplicationStatusString");
 		}
 
+		private bool IsChrome { get { return this.ApplicationName.Equals("chrome", StringComparison.InvariantCultureIgnoreCase); } }
+		private bool IsExplorer { get { return this.ApplicationName.Equals("explorer", StringComparison.InvariantCultureIgnoreCase); } }
+		private bool IsCmd { get { return this.ApplicationName.Equals("cmd", StringComparison.InvariantCultureIgnoreCase); } }
 		private Process GetProcessForApplication()
 		{
 			var matchingProcs = Process.GetProcessesByName(this.ApplicationName);
@@ -414,7 +588,9 @@ namespace WindowsStartupManager
 			{
 				if (matchingProcs.Length > 1)
 				{
-					if (!this.ApplicationName.Equals("chrome", StringComparison.InvariantCultureIgnoreCase))
+					if (!IsChrome
+						&& !IsExplorer
+						&& !IsCmd)
 						UserMessages.ShowWarningMessage(
 							"Multiple processes found with name = '" + this.ApplicationName
 							+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
@@ -429,7 +605,8 @@ namespace WindowsStartupManager
 		public void OnPropertyChanged(string propertyName) { PropertyChanged(this, new PropertyChangedEventArgs(propertyName)); }
 
 		private bool successfullyRanOnce = false;
-		public void StartNow_NotAllowMultipleInstances(bool showMessages = true, bool startAgainIfAlreadyRanAndClosed = false)
+		//true=started now,false=could not start,null=already started
+		public bool? StartNow_NotAllowMultipleInstances(bool showMessages = true, bool startAgainIfAlreadyRanAndClosed = false)
 		{
 			if (this.ApplicationStatus != ApplicationDetails.ApplicationStatusses.Running)
 			{
@@ -438,9 +615,10 @@ namespace WindowsStartupManager
 					try
 					{
 						if (successfullyRanOnce && !startAgainIfAlreadyRanAndClosed)
-							return;
+							return null;
 
-						Environment.CurrentDirectory = Path.GetDirectoryName(this.ApplicationFullPath);
+						if (File.Exists(this.ApplicationFullPath) || Directory.Exists(this.ApplicationFullPath))
+							Environment.CurrentDirectory = Path.GetDirectoryName(this.ApplicationFullPath);
 						Process proc = null;
 						if (!string.IsNullOrWhiteSpace(this.ApplicationArguments))
 							proc = Process.Start(this.ApplicationFullPath, this.ApplicationArguments);
@@ -449,7 +627,7 @@ namespace WindowsStartupManager
 
 						if (proc != null)
 							successfullyRanOnce = true;
-						this.UpdateApplicationRunningStatus();
+						this.UpdateApplicationRunningStatus(true);
 
 						ThreadingInterop.PerformOneArgFunctionSeperateThread((arg) =>
 						{
@@ -459,27 +637,31 @@ namespace WindowsStartupManager
 								Process thisProc = ProcAndAppDet[0] as Process;
 								ApplicationDetails thisAppdet = ProcAndAppDet[1] as ApplicationDetails;
 								thisProc.WaitForExit();
-								thisAppdet.UpdateApplicationRunningStatus();
+								thisAppdet.UpdateApplicationRunningStatus(true);
 							}
 						},
 						new object[] { proc, this },
 						false);
+						return true;
 					}
 					catch (Exception exc)
 					{
 						UserMessages.ShowErrorMessage(exc.Message + Environment.NewLine + exc.StackTrace);
+						return false;//Did not start app
 					}
 				}
 				else
 				{
 					if (showMessages)
 						UserMessages.ShowWarningMessage("No application full path defined for application " + this.ApplicationName);
+					return false;//Did not start app
 				}
 			}
 			else
 			{
 				if (showMessages)
 					UserMessages.ShowInfoMessage("Application already running");
+				return false;//Did not start app
 			}
 		}
 	}

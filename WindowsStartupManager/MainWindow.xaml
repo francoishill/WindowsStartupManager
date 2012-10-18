@@ -20,13 +20,39 @@
 	</Window.Resources>
 	<DockPanel Name='mainDockPanel'
 			   LastChildFill='True'>
-		<DockPanel DockPanel.Dock='Top' HorizontalAlignment='Center'>
-			<StackPanel Orientation='Horizontal'>
-				<Button Content='Get from registry'
-						HorizontalAlignment='Center'
-						Background='Transparent'
-						Click='Button_Click_1' />
-				<Label Name='cpuUsage' />
+		<Label Name='labelDelayBetweenApps'
+			   DockPanel.Dock='Top'
+			   HorizontalAlignment='Center' />
+		<Label Name='labelStatus'
+			   DockPanel.Dock='Bottom'
+			   Foreground='#777'
+			   Content='label'
+			   Padding='5,10,5,5' />
+		<DockPanel DockPanel.Dock='Top'
+				   HorizontalAlignment='Center'>
+			<StackPanel Orientation='Vertical'>
+				<StackPanel Orientation='Vertical'>
+					<StackPanel Orientation='Horizontal'
+								HorizontalAlignment='Center'
+								Margin='0 0 0 5'>
+						<Button Content='Get from registry'
+								HorizontalAlignment='Center'
+								Background='Transparent'
+								Click='buttonGetFromRegistry_Click' />
+						<Button Content='Get from startupfolder'
+								HorizontalAlignment='Center'
+								Margin='5 0 0 0'
+								Background='Transparent'
+								Click='buttonGetFromStartupFolder_Click' />
+					</StackPanel>
+					<StackPanel Orientation='Horizontal' HorizontalAlignment='Center'>
+						<Button Name='buttonPauseStarting'
+								Content='Pause starting apps'
+								Background='Transparent'
+								Click='buttonPauseStarting_Click' />
+						<Label Name='cpuUsage' />
+					</StackPanel>
+				</StackPanel>
 			</StackPanel>
 		</DockPanel>
 		<DockPanel DockPanel.Dock='Right'
