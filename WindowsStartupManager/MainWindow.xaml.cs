@@ -253,6 +253,7 @@ namespace WindowsStartupManager
 		{
 			//this.Hide();
 			this.Close();//This app is intended for on windows startup only
+			Environment.Exit(0);//Forces exit
 		}
 
 		private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -520,10 +521,11 @@ namespace WindowsStartupManager
 				this.ApplicationFullPath = path;
 			else
 				this.ApplicationFullPath = GetApplicationFullPathFromOwnAppname(this.ApplicationName);
-			UpdateApplicationRunningStatus(false);
 			this.ApplicationArguments = command.CommandlineArguments;//string.Join(" ", command.CommandlineArguments.Select(c => "\"" + c.Trim('\"') + "\""));
 
 			this.DisplayName = command.DisplayName;
+
+			UpdateApplicationRunningStatus(false);
 		}
 
 		public static string GetApplicationFullPathFromOwnAppname(string ownApplicationName)
@@ -623,7 +625,12 @@ namespace WindowsStartupManager
 						if (!string.IsNullOrWhiteSpace(this.ApplicationArguments))
 							proc = Process.Start(this.ApplicationFullPath, this.ApplicationArguments);
 						else
-							proc = Process.Start(this.ApplicationFullPath);
+						{
+							if (Directory.Exists(this.ApplicationFullPath))
+								proc = Process.Start("explorer", this.ApplicationFullPath);
+							else
+								proc = Process.Start(this.ApplicationFullPath);
+						}
 
 						if (proc != null)
 							successfullyRanOnce = true;
