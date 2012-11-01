@@ -373,10 +373,8 @@ namespace WindowsStartupManager
 			{
 				if (actualShortcutFile.EndsWith("desktop.ini", StringComparison.InvariantCultureIgnoreCase))
 					continue;
-				string shortcutPath;
-				string shortcutArguments;
-				string displayName;
-				if (WindowsInterop.GetShortcutTargetFile(actualShortcutFile, out shortcutPath, out shortcutArguments))
+				string shortcutPath, shortcutArguments, displayName, iconPath;
+				if (WindowsInterop.GetShortcutTargetFile(actualShortcutFile, out shortcutPath, out shortcutArguments, out iconPath))
 				{
 					SettingsSimple.ApplicationManagerSettings.RunCommand runcom;
 
