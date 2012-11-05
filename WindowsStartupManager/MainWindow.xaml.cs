@@ -206,8 +206,14 @@ namespace WindowsStartupManager
 			}
 		}
 
+		bool busyPopulating = false;
 		private void PopulateApplicationsList()
 		{
+			if (busyPopulating)
+				return;
+
+			busyPopulating = true;
+
 			listAlreadyPopulatedAtLeastOnce = true;
 			Applications.Clear();
 			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
@@ -216,6 +222,8 @@ namespace WindowsStartupManager
 			listBox1.ItemsSource = Applications;
 			labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
 			this.BringIntoView();
+
+			busyPopulating = false;
 		}
 
 		private void OwnBringIntoView()
@@ -503,6 +511,7 @@ namespace WindowsStartupManager
 		public string ApplicationStatusString { get { return ApplicationStatus.ToString().InsertSpacesBeforeCamelCase(); } }
 		public string ApplicationFullPath { get; private set; }
 		public string ApplicationArguments { get; private set; }
+		public bool WaitForUserInput { get; private set; }
 
 		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
 		{
@@ -522,6 +531,7 @@ namespace WindowsStartupManager
 			this.ApplicationArguments = command.CommandlineArguments;//string.Join(" ", command.CommandlineArguments.Select(c => "\"" + c.Trim('\"') + "\""));
 
 			this.DisplayName = command.DisplayName;
+			this.WaitForUserInput = command.WaitForUserInput;
 
 			UpdateApplicationRunningStatus(false);
 		}
@@ -612,6 +622,12 @@ namespace WindowsStartupManager
 			{
 				if (!string.IsNullOrWhiteSpace(this.ApplicationFullPath))
 				{
+					DateTime systemStartupTime;
+					TimeSpan idleTime;
+					Win32Api.GetLastInputInfo(out systemStartupTime, out idleTime);
+					if (this.WaitForUserInput && idleTime.TotalSeconds > 5)
+						return null;//We should wait for userinput
+
 					try
 					{
 						if (successfullyRanOnce && !startAgainIfAlreadyRanAndClosed)
