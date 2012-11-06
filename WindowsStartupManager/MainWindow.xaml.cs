@@ -207,14 +207,16 @@ namespace WindowsStartupManager
 		}
 
 		bool busyPopulating = false;
-		private void PopulateApplicationsList()
+		private void PopulateApplicationsList(bool populateIfAlreadyPopulated = false)
 		{
 			if (busyPopulating)
 				return;
+			if (!populateIfAlreadyPopulated && listAlreadyPopulatedAtLeastOnce)
+				return;
 
 			busyPopulating = true;
-
 			listAlreadyPopulatedAtLeastOnce = true;
+
 			Applications.Clear();
 			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
 				foreach (var comm in SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
@@ -354,7 +356,7 @@ namespace WindowsStartupManager
 				}
 			}
 			SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = commands;
-			PopulateApplicationsList();
+			PopulateApplicationsList(true);
 		}
 
 		private void buttonGetFromStartupFolder_Click(object sender, RoutedEventArgs e)
@@ -448,7 +450,7 @@ namespace WindowsStartupManager
 				}
 			}
 			SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = commands;
-			PopulateApplicationsList();
+			PopulateApplicationsList(true);
 		}
 
 		private bool isPaused = false;
