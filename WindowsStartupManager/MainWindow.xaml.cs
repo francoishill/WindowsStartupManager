@@ -29,9 +29,10 @@ namespace WindowsStartupManager
 	public partial class MainWindow : Window
 	{
 		public const string cThisAppName = "WindowsStartupManager";
-		private readonly TimeSpan DelaySecondsBetweenApps = TimeSpan.FromSeconds(2);//TimeSpan.FromMilliseconds(500);
+		//private readonly TimeSpan DelaySecondsBetweenApps = TimeSpan.FromSeconds(2);//TimeSpan.FromMilliseconds(500);
 		private string originalPauseButtonContent;
 		ObservableCollection<ApplicationDetails> Applications = new ObservableCollection<ApplicationDetails>();
+		private bool silentWaitUntilMorningMode = false;
 
 		public MainWindow()
 		{
@@ -72,8 +73,8 @@ namespace WindowsStartupManager
 		int minimumCPUrunningSeconds = 30;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
-			labelDelayBetweenApps.Content = "Delay after each app = "
-				+ DelaySecondsBetweenApps.TotalMilliseconds + "ms";
+			//labelDelayBetweenApps.Content = "Delay after each app = "
+			//    + DelaySecondsBetweenApps.TotalMilliseconds + "ms";
 
 			if (IsSystemRunningMinimumDuration())
 				labelStatus.Content = "CPU already running more than "
@@ -100,15 +101,17 @@ namespace WindowsStartupManager
 				new Timer(delegate
 				{
 					Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
-					if (!listAlreadyPopulatedAtLeastOnce)
-						Dispatcher.Invoke((Action)delegate
-						{
-							PopulateApplicationsList();
-						});
+					//if (!listAlreadyPopulatedAtLeastOnce)
+					//    Dispatcher.Invoke((Action)delegate
+					//    {
+					//        PopulateApplicationsList();
+					//    });
 
 					if (IsSystemRunningMinimumDuration())//Check system already running a while
 						Dispatcher.Invoke((Action)delegate
 					 {
+						 if (!listAlreadyPopulatedAtLeastOnce)
+							 PopulateApplicationsList();
 						 StartAllApplications();
 					 });
 					/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
@@ -156,7 +159,7 @@ namespace WindowsStartupManager
 		bool isbusyStarting = false;
 		private void StartAllApplications()
 		{
-			if (isbusyStarting)
+			if (isbusyStarting || silentWaitUntilMorningMode)
 				return;
 
 			isbusyStarting = true;
@@ -165,8 +168,17 @@ namespace WindowsStartupManager
 				//foreach (var app in Applications)
 				for (int i = 0; i < Applications.Count; i++)
 				{
+					if (silentWaitUntilMorningMode)
+						break;
+
 					var app = Applications[i];
-					labelStatus.Content = "Starting \"" + app.DisplayName + "\", waiting " + DelaySecondsBetweenApps.TotalSeconds + " seconds";
+
+					int delayInSeconds = app.DelayAfterStartSeconds;
+					//if (delayInSeconds <= 0)
+					//    //TODO: Why still have to do this????
+					//    delayInSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;//delayInSeconds = 1;//Minimum 1 second??
+
+					labelStatus.Content = "Starting \"" + app.DisplayName + "\", waiting " + delayInSeconds + " seconds";
 					labelStatus.UpdateLayout();
 					bool? startupSuccess
 						= app.StartNow_NotAllowMultipleInstances(false);
@@ -174,7 +186,7 @@ namespace WindowsStartupManager
 						WPFHelper.DoEvents();
 					this.UpdateLayout();
 					if (startupSuccess == true)//Was started now (not started previously, did not fail)
-						Thread.Sleep(DelaySecondsBetweenApps);
+						Thread.Sleep(delayInSeconds * 1000);
 					//if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
 					//    break;
 				}
@@ -182,6 +194,15 @@ namespace WindowsStartupManager
 			finally
 			{
 				isbusyStarting = false;
+
+				if (silentWaitUntilMorningMode)//We hidden now, waiting for morning in order to restart the pc
+				{
+					//TODO: Maybe put in some way to determine the earliest we ever got into work, and the maximum duration of executing all the apps
+					Applications.Clear();
+					Applications = null;
+					GC.Collect();
+					GC.WaitForPendingFinalizers();
+				}
 			}
 		}
 
@@ -215,16 +236,28 @@ namespace WindowsStartupManager
 				return;
 
 			busyPopulating = true;
-			listAlreadyPopulatedAtLeastOnce = true;
+			//listAlreadyPopulatedAtLeastOnce = true;
 
 			Applications.Clear();
 			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
-				foreach (var comm in SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
+			{
+				var runcomms = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
+				for (int i = 0; i < runcomms.Count; i++)
+				{
+					if (runcomms[i].DelayAfterStartSeconds == 0)
+						runcomms[i].DelayAfterStartSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;
+					//if (!runcomms[i].IsEnabled)
+					//    runcomms[i].IsEnabled = true;
+				}
+				SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
+				foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
 					Applications.Add(new ApplicationDetails(comm));
+			}
 			listBox1.ItemsSource = Applications;
 			labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
 			this.BringIntoView();
 
+			listAlreadyPopulatedAtLeastOnce = true;
 			busyPopulating = false;
 		}
 
@@ -259,11 +292,40 @@ namespace WindowsStartupManager
 			appdet.StartNow_NotAllowMultipleInstances(true, true);
 		}
 
+		private Timer tmpTimerCheckToRestartInMorning;
 		private void Button_Click(object sender, RoutedEventArgs e)
 		{
-			//this.Hide();
-			this.Close();//This app is intended for on windows startup only
-			Environment.Exit(0);//Forces exit
+			this.Hide();
+			//this.IsEnabled = false;
+			silentWaitUntilMorningMode = true;
+
+			//At this stage only for work PC
+			if (Directory.Exists(@"C:\Programming\GLSCore6"))
+			{
+				tmpTimerCheckToRestartInMorning = new Timer(
+					delegate
+					{
+						var timeofday = DateTime.Now.TimeOfDay;
+						//if (timeofday.Hours == 6 && timeofday.Minutes >= 0 && timeofday.Minutes < 15)//Between 06h00 and 06h15
+						if (timeofday.Hours == 21 && timeofday.Minutes > 50)
+						{
+							DateTime tmpStartup;
+							TimeSpan idleTime;
+							if (Win32Api.GetLastInputInfo(out tmpStartup, out idleTime)
+								&& idleTime.TotalHours > 3)//We assume it is in the morning when there was no user input for more than 3 hours
+							{
+								int waitBeforeShutdownSeconds = 30;
+								Process.Start("shutdown", "-r -f -t " + waitBeforeShutdownSeconds + " -c \"Restart in the morning via CSharp WindowsStartupManager\"");
+							}
+						}
+					},
+					null,
+					TimeSpan.Zero,//TimeSpan.FromSeconds(0),
+					TimeSpan.FromMinutes(1));
+			}
+
+			/*this.Close();//This app is intended for on windows startup only
+			Environment.Exit(0);//Forces exit*/
 		}
 
 		private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -514,6 +576,8 @@ namespace WindowsStartupManager
 		public string ApplicationFullPath { get; private set; }
 		public string ApplicationArguments { get; private set; }
 		public bool WaitForUserInput { get; private set; }
+		public int DelayAfterStartSeconds { get; private set; }
+		public bool IsEnabled { get; private set; }
 
 		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
 		{
@@ -534,6 +598,8 @@ namespace WindowsStartupManager
 
 			this.DisplayName = command.DisplayName;
 			this.WaitForUserInput = command.WaitForUserInput;
+			this.DelayAfterStartSeconds = command.DelayAfterStartSeconds;
+			this.IsEnabled = command.IsEnabled;
 
 			UpdateApplicationRunningStatus(false);
 		}
@@ -620,6 +686,9 @@ namespace WindowsStartupManager
 		//true=started now,false=could not start,null=already started
 		public bool? StartNow_NotAllowMultipleInstances(bool showMessages = true, bool startAgainIfAlreadyRanAndClosed = false)
 		{
+			if (!this.IsEnabled)
+				return null;//Application is not enabled
+
 			if (this.ApplicationStatus != ApplicationDetails.ApplicationStatusses.Running)
 			{
 				if (!string.IsNullOrWhiteSpace(this.ApplicationFullPath))

@@ -20,9 +20,9 @@
 	</Window.Resources>
 	<DockPanel Name='mainDockPanel'
 			   LastChildFill='True'>
-		<Label Name='labelDelayBetweenApps'
+		<!--<Label Name='labelDelayBetweenApps'
 			   DockPanel.Dock='Top'
-			   HorizontalAlignment='Center' />
+			   HorizontalAlignment='Center' />-->
 		<Label Name='labelStatus'
 			   DockPanel.Dock='Bottom'
 			   Foreground='#777'
