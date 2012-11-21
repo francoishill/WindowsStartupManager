@@ -73,6 +73,8 @@ namespace WindowsStartupManager
 		int minimumCPUrunningSeconds = 30;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
+			this.MaxHeight = System.Windows.SystemParameters.WorkArea.Height - 300;
+
 			//labelDelayBetweenApps.Content = "Delay after each app = "
 			//    + DelaySecondsBetweenApps.TotalMilliseconds + "ms";
 
@@ -87,10 +89,7 @@ namespace WindowsStartupManager
 			timerToPopulateList =
 				new Timer(delegate
 				{
-					Dispatcher.Invoke((Action)delegate
-					{
-						PopulateApplicationsList();
-					});
+					PopulateApplicationsList();
 				},
 				null,
 				200,
@@ -108,12 +107,12 @@ namespace WindowsStartupManager
 					//    });
 
 					if (IsSystemRunningMinimumDuration())//Check system already running a while
-						Dispatcher.Invoke((Action)delegate
-					 {
-						 if (!listAlreadyPopulatedAtLeastOnce)
-							 PopulateApplicationsList();
-						 StartAllApplications();
-					 });
+					{
+						if (!listAlreadyPopulatedAtLeastOnce)
+							PopulateApplicationsList();
+						StartAllApplications();
+					}
+
 					/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
 						StartAllApplications();*/
 				},
@@ -121,29 +120,29 @@ namespace WindowsStartupManager
 				TimeSpan.FromSeconds(0),
 				TimeSpan.FromSeconds(5));
 
-			timerToLogCpuUsage = new Timer(delegate
-				{
-					//Log for first while
-					if (!skipLoggingCpuUsage)
-					{
-						string logfile = Logging.LogInfoToFile(
-							"[" + DateTime.Now.ToString("HH:mm:ss")
-								+ "] (system startup at " + systemStartupTime.ToString("HH:mm:ss")
-								+ ") cpu usage = " + (int)GetMaxCpuUsage() + "%",
-							Logging.ReportingFrequencies.Daily,
-							cThisAppName,
-							"CpuUsageLogs");
-						if (DateTime.Now.Subtract(systemStartupTime).TotalMinutes > 20)
-						{
-							skipLoggingCpuUsage = true;
-							//if (UserMessages.Confirm("Cpu usages was logged, open the log file?"))
-							//    Process.Start("notepad", logfile);
-						}
-					}
-				},
-				null,
-				TimeSpan.FromSeconds(0),
-				TimeSpan.FromSeconds(2));
+			//timerToLogCpuUsage = new Timer(delegate
+			//    {
+			//        //Log for first while
+			//        if (!skipLoggingCpuUsage)
+			//        {
+			//            string logfile = Logging.LogInfoToFile(
+			//                "[" + DateTime.Now.ToString("HH:mm:ss")
+			//                    + "] (system startup at " + systemStartupTime.ToString("HH:mm:ss")
+			//                    + ") cpu usage = " + (int)GetMaxCpuUsage() + "%",
+			//                Logging.ReportingFrequencies.Daily,
+			//                cThisAppName,
+			//                "CpuUsageLogs");
+			//            if (DateTime.Now.Subtract(systemStartupTime).TotalMinutes > 20)
+			//            {
+			//                skipLoggingCpuUsage = true;
+			//                //if (UserMessages.Confirm("Cpu usages was logged, open the log file?"))
+			//                //    Process.Start("notepad", logfile);
+			//            }
+			//        }
+			//    },
+			//    null,
+			//    TimeSpan.FromSeconds(0),
+			//    TimeSpan.FromSeconds(2));
 		}
 
 		private TimeSpan GetCPUrunningDuration()
@@ -163,6 +162,9 @@ namespace WindowsStartupManager
 				return;
 
 			isbusyStarting = true;
+
+			//Dispatcher.Invoke((Action)delegate
+			//{
 			try
 			{
 				//foreach (var app in Applications)
@@ -173,18 +175,31 @@ namespace WindowsStartupManager
 
 					var app = Applications[i];
 
+					if (isPaused)
+					{
+						app.UpdateApplicationRunningStatus(true);
+						continue;
+					}
+
 					int delayInSeconds = app.DelayAfterStartSeconds;
 					//if (delayInSeconds <= 0)
 					//    //TODO: Why still have to do this????
 					//    delayInSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;//delayInSeconds = 1;//Minimum 1 second??
 
-					labelStatus.Content = "Starting \"" + app.DisplayName + "\", waiting " + delayInSeconds + " seconds";
-					labelStatus.UpdateLayout();
+					//Gui updates
+					Dispatcher.Invoke((Action)delegate
+					{
+						labelStatus.Content = "Starting \"" + app.DisplayName + "\", waiting " + delayInSeconds + " seconds";
+					});
+					UpdateLayoutThreadsafe(labelStatus);
+
 					bool? startupSuccess
 						= app.StartNow_NotAllowMultipleInstances(false);
-					while (isPaused)
-						WPFHelper.DoEvents();
-					this.UpdateLayout();
+					//while (isPaused)
+					//    WPFHelper.DoEvents();
+
+					UpdateLayoutThreadsafe(this);
+					
 					if (startupSuccess == true)//Was started now (not started previously, did not fail)
 						Thread.Sleep(delayInSeconds * 1000);
 					//if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
@@ -204,6 +219,15 @@ namespace WindowsStartupManager
 					GC.WaitForPendingFinalizers();
 				}
 			}
+			//});
+		}
+
+		private void UpdateLayoutThreadsafe(Control control)
+		{
+			control.Dispatcher.Invoke((Action)delegate
+			{
+				control.UpdateLayout();
+			});
 		}
 
 		private float GetMaxCpuUsage()
@@ -238,27 +262,31 @@ namespace WindowsStartupManager
 			busyPopulating = true;
 			//listAlreadyPopulatedAtLeastOnce = true;
 
-			Applications.Clear();
-			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
+			Dispatcher.Invoke((Action)delegate
 			{
-				var runcomms = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
-				for (int i = 0; i < runcomms.Count; i++)
+				Applications.Clear();
+				if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
 				{
-					if (runcomms[i].DelayAfterStartSeconds == 0)
-						runcomms[i].DelayAfterStartSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;
-					//if (!runcomms[i].IsEnabled)
-					//    runcomms[i].IsEnabled = true;
+					var runcomms = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
+					for (int i = 0; i < runcomms.Count; i++)
+					{
+						if (runcomms[i].DelayAfterStartSeconds == 0)
+							runcomms[i].DelayAfterStartSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;
+						//if (!runcomms[i].IsEnabled)
+						//    runcomms[i].IsEnabled = true;
+					}
+					SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
+					foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
+						Applications.Add(new ApplicationDetails(comm));
 				}
-				SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
-				foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
-					Applications.Add(new ApplicationDetails(comm));
-			}
-			listBox1.ItemsSource = Applications;
-			labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
-			this.BringIntoView();
+				listBox1.ItemsSource = Applications;
+				labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
+				this.BringIntoView();
 
-			listAlreadyPopulatedAtLeastOnce = true;
-			busyPopulating = false;
+				listAlreadyPopulatedAtLeastOnce = true;
+				timerToPopulateList.Dispose(); timerToPopulateList = null;
+				busyPopulating = false;
+			});
 		}
 
 		private void OwnBringIntoView()
@@ -295,12 +323,22 @@ namespace WindowsStartupManager
 		private Timer tmpTimerCheckToRestartInMorning;
 		private void Button_Click(object sender, RoutedEventArgs e)
 		{
-			this.Hide();
-			//this.IsEnabled = false;
+			bool isWorkPc = Directory.Exists(@"C:\Programming\GLSCore6");
+
+			if (isWorkPc)
+			{
+				this.Hide();
+				if (startAppsTimer != null)
+				{
+					startAppsTimer.Dispose(); startAppsTimer = null;
+				}
+			}
+			else
+				this.IsEnabled = false;
 			silentWaitUntilMorningMode = true;
 
 			//At this stage only for work PC
-			if (Directory.Exists(@"C:\Programming\GLSCore6"))
+			if (isWorkPc)
 			{
 				tmpTimerCheckToRestartInMorning = new Timer(
 					delegate
@@ -546,7 +584,7 @@ namespace WindowsStartupManager
 		ScaleTransform scaleTransform = new ScaleTransform(1, 1);
 		private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
 		{
-			if (mainDockPanel.LayoutTransform != smallScale)
+			if (Keyboard.Modifiers == ModifierKeys.Control && mainDockPanel.LayoutTransform != smallScale)
 			{
 				e.Handled = true;
 				mainDockPanel.LayoutTransform = scaleTransform;
@@ -631,7 +669,7 @@ namespace WindowsStartupManager
 			return fullpathOrOwnAppname;
 		}
 
-		private void UpdateApplicationRunningStatus(bool markExplorerAsRunning)
+		public void UpdateApplicationRunningStatus(bool markExplorerAsRunning)
 		{
 			Process proc = GetProcessForApplication();
 			if (proc == null)
@@ -646,7 +684,25 @@ namespace WindowsStartupManager
 			else
 			{
 				if (markExplorerAsRunning || !IsExplorer && !IsCmd)
+				{
 					this.ApplicationStatus = ApplicationStatusses.Running;
+					this.successfullyRanOnce = true;
+				}
+
+				ThreadingInterop.PerformOneArgFunctionSeperateThread((arg) =>
+				{
+					object[] ProcAndAppDet = arg as object[];
+					if (ProcAndAppDet != null && ProcAndAppDet.Length == 2 && ProcAndAppDet[0] is Process && ProcAndAppDet[1] is ApplicationDetails)
+					{
+						Process thisProc = ProcAndAppDet[0] as Process;
+						ApplicationDetails thisAppdet = ProcAndAppDet[1] as ApplicationDetails;
+						thisProc.WaitForExit();
+						thisAppdet.UpdateApplicationRunningStatus(true);
+					}
+				},
+				new object[] { proc, this },
+				false);
+
 				//TODO: Skip updating fullpath for now
 				//this.ApplicationFullPath = proc.MainModule.FileName;
 			}
@@ -664,15 +720,35 @@ namespace WindowsStartupManager
 				matchingProcs = Process.GetProcessesByName(this.ApplicationName.InsertSpacesBeforeCamelCase());
 			if (matchingProcs.Length >= 1)
 			{
-				if (matchingProcs.Length > 1)
+				//if (matchingProcs.Length > 1)
+				//{
+				if (File.Exists(this.ApplicationFullPath))
 				{
-					if (!IsChrome
-						&& !IsExplorer
-						&& !IsCmd)
-						UserMessages.ShowWarningMessage(
-							"Multiple processes found with name = '" + this.ApplicationName
-							+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
+					var itemsMatchingExactPath = matchingProcs.Where(
+						p => p.MainModule != null
+						&& p.MainModule.FileName != null
+						&& p.MainModule.FileName.Trim('\\').ToLower() == this.ApplicationFullPath.Trim('\\').ToLower()).ToArray();
+					if (itemsMatchingExactPath.Length > 1)
+					{
+						//We have the exact same processes
+						if (!IsChrome
+							&& !IsExplorer
+							&& !IsCmd)
+							UserMessages.ShowWarningMessage(
+								"Multiple processes found with name = '" + this.ApplicationName
+								+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
+					}
+					else if (itemsMatchingExactPath.Length == 1)
+						return itemsMatchingExactPath.First();
+					else
+					{
+						//UserMessages.ShowWarningMessage(
+						//    "Unable to find process (with exact same file path) for app '" + this.ApplicationName
+						//    + "', full path = " + this.ApplicationFullPath);
+						return null;//No valid match found
+					}
 				}
+				//}
 				return matchingProcs[0];
 			}
 			else// if (matchingProcs.Length == 0)

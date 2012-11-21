@@ -2,6 +2,7 @@
 		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 		xmlns:local='clr-namespace:WindowsStartupManager'
+		xmlns:sharedclasses='clr-namespace:SharedClasses'
 		Title="MainWindow"
 		Loaded='Window_Loaded'
 		SizeToContent='WidthAndHeight'
@@ -17,6 +18,7 @@
 		PreviewMouseWheel='Window_PreviewMouseWheel'>
 	<Window.Resources>
 		<local:ApplicationStatusToBrushConverter x:Key='applicationStatusToBrushConverter' />
+		<sharedclasses:BooleanToOpacityConverter x:Key='booleanToOpacityConverter' />
 	</Window.Resources>
 	<DockPanel Name='mainDockPanel'
 			   LastChildFill='True'>
@@ -45,7 +47,8 @@
 								Background='Transparent'
 								Click='buttonGetFromStartupFolder_Click' />
 					</StackPanel>
-					<StackPanel Orientation='Horizontal' HorizontalAlignment='Center'>
+					<StackPanel Orientation='Horizontal'
+								HorizontalAlignment='Center'>
 						<Button Name='buttonPauseStarting'
 								Content='Pause starting apps'
 								Background='Transparent'
@@ -72,7 +75,8 @@
 					 BorderThickness='0'>
 				<ListBox.ItemTemplate>
 					<DataTemplate>
-						<StackPanel Orientation='Horizontal'>
+						<StackPanel Orientation='Horizontal'
+									Opacity='{Binding IsEnabled,Converter={StaticResource booleanToOpacityConverter},ConverterParameter=0.5}'>
 							<Button Click='ApplicationButton_Click'
 									ToolTip='{Binding ApplicationFullPath}'>
 								<ContentPresenter>
