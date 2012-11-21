@@ -306,8 +306,8 @@ namespace WindowsStartupManager
 					delegate
 					{
 						var timeofday = DateTime.Now.TimeOfDay;
-						//if (timeofday.Hours == 6 && timeofday.Minutes >= 0 && timeofday.Minutes < 15)//Between 06h00 and 06h15
-						if (timeofday.Hours == 21 && timeofday.Minutes > 50)
+						if (timeofday.Hours == 6 && timeofday.Minutes >= 0 && timeofday.Minutes < 15)//Between 06h00 and 06h15
+						//if (timeofday.Hours == 22 && timeofday.Minutes > 30)
 						{
 							DateTime tmpStartup;
 							TimeSpan idleTime;
