@@ -199,7 +199,7 @@ namespace WindowsStartupManager
 					//    WPFHelper.DoEvents();
 
 					UpdateLayoutThreadsafe(this);
-					
+
 					if (startupSuccess == true)//Was started now (not started previously, did not fail)
 						Thread.Sleep(delayInSeconds * 1000);
 					//if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
@@ -715,44 +715,63 @@ namespace WindowsStartupManager
 		private bool IsCmd { get { return this.ApplicationName.Equals("cmd", StringComparison.InvariantCultureIgnoreCase); } }
 		private Process GetProcessForApplication()
 		{
-			var matchingProcs = Process.GetProcessesByName(this.ApplicationName);
-			if (matchingProcs.Length == 0)
-				matchingProcs = Process.GetProcessesByName(this.ApplicationName.InsertSpacesBeforeCamelCase());
-			if (matchingProcs.Length >= 1)
+			int retryCount = 0;
+		retryOnException:
+			try
 			{
-				//if (matchingProcs.Length > 1)
-				//{
-				if (File.Exists(this.ApplicationFullPath))
+				var matchingProcs = Process.GetProcessesByName(this.ApplicationName);
+				if (matchingProcs.Length == 0)
+					matchingProcs = Process.GetProcessesByName(this.ApplicationName.InsertSpacesBeforeCamelCase());
+				if (matchingProcs.Length >= 1)
 				{
-					var itemsMatchingExactPath = matchingProcs.Where(
-						p => p.MainModule != null
-						&& p.MainModule.FileName != null
-						&& p.MainModule.FileName.Trim('\\').ToLower() == this.ApplicationFullPath.Trim('\\').ToLower()).ToArray();
-					if (itemsMatchingExactPath.Length > 1)
+					//if (matchingProcs.Length > 1)
+					//{
+					if (File.Exists(this.ApplicationFullPath))
 					{
-						//We have the exact same processes
-						if (!IsChrome
-							&& !IsExplorer
-							&& !IsCmd)
-							UserMessages.ShowWarningMessage(
-								"Multiple processes found with name = '" + this.ApplicationName
-								+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
+						var itemsMatchingExactPath = matchingProcs.Where(
+							p => p.MainModule != null
+							&& p.MainModule.FileName != null
+							&& p.MainModule.FileName.Trim('\\').ToLower() == this.ApplicationFullPath.Trim('\\').ToLower()).ToArray();
+						if (itemsMatchingExactPath.Length > 1)
+						{
+							//We have the exact same processes
+							if (!IsChrome
+								&& !IsExplorer
+								&& !IsCmd)
+								UserMessages.ShowWarningMessage(
+									"Multiple processes found with name = '" + this.ApplicationName
+									+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
+						}
+						else if (itemsMatchingExactPath.Length == 1)
+							return itemsMatchingExactPath.First();
+						else
+						{
+							//UserMessages.ShowWarningMessage(
+							//    "Unable to find process (with exact same file path) for app '" + this.ApplicationName
+							//    + "', full path = " + this.ApplicationFullPath);
+							return null;//No valid match found
+						}
 					}
-					else if (itemsMatchingExactPath.Length == 1)
-						return itemsMatchingExactPath.First();
-					else
-					{
-						//UserMessages.ShowWarningMessage(
-						//    "Unable to find process (with exact same file path) for app '" + this.ApplicationName
-						//    + "', full path = " + this.ApplicationFullPath);
-						return null;//No valid match found
-					}
+					//}
+					return matchingProcs[0];
 				}
-				//}
-				return matchingProcs[0];
+				else// if (matchingProcs.Length == 0)
+					return null;
 			}
-			else// if (matchingProcs.Length == 0)
-				return null;
+			catch (Exception exc)
+			{
+				if (++retryCount <= 5)//Only retry 5 times
+				{
+					Thread.Sleep(2000);
+					goto retryOnException;
+				}
+				else
+				{
+					UserMessages.ShowWarningMessage(
+						"Unable to find process for application '" + this.ApplicationName + "', exception: " + exc.Message);
+					return null;
+				}
+			}
 		}
 
 		public event PropertyChangedEventHandler PropertyChanged = new PropertyChangedEventHandler(delegate { });
