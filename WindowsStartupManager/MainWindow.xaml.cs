@@ -343,8 +343,11 @@ namespace WindowsStartupManager
 				tmpTimerCheckToRestartInMorning = new Timer(
 					delegate
 					{
-						var timeofday = DateTime.Now.TimeOfDay;
-						if (timeofday.Hours == 6 && timeofday.Minutes >= 0 && timeofday.Minutes < 15)//Between 06h00 and 06h15
+						DateTime now = DateTime.Now;
+						var timeofday = now.TimeOfDay;
+						if (
+							now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday//Only weekdays
+							&& timeofday.Hours == 6 && timeofday.Minutes >= 0 && timeofday.Minutes < 15)//Between 06h00 and 06h15
 						//if (timeofday.Hours == 22 && timeofday.Minutes > 30)
 						{
 							DateTime tmpStartup;
