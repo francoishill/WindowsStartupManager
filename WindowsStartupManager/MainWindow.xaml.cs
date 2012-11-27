@@ -213,10 +213,12 @@ namespace WindowsStartupManager
 				if (silentWaitUntilMorningMode)//We hidden now, waiting for morning in order to restart the pc
 				{
 					//TODO: Maybe put in some way to determine the earliest we ever got into work, and the maximum duration of executing all the apps
-					Applications.Clear();
+
+					//Rather not clearing all Applications, still used for later in "Quick close apps"
+					/*Dispatcher.Invoke((Action)delegate { Applications.Clear(); });
 					Applications = null;
 					GC.Collect();
-					GC.WaitForPendingFinalizers();
+					GC.WaitForPendingFinalizers();*/
 				}
 			}
 			//});
@@ -323,6 +325,11 @@ namespace WindowsStartupManager
 		private Timer tmpTimerCheckToRestartInMorning;
 		private void Button_Click(object sender, RoutedEventArgs e)
 		{
+			ExitOrHide();
+		}
+
+		private void ExitOrHide()
+		{
 			bool isWorkPc = Directory.Exists(@"C:\Programming\GLSCore6");
 
 			if (isWorkPc)
@@ -332,6 +339,7 @@ namespace WindowsStartupManager
 				{
 					startAppsTimer.Dispose(); startAppsTimer = null;
 				}
+				menuitemQuickCloseApps.Visible = true;
 			}
 			else
 				this.IsEnabled = false;
@@ -364,9 +372,13 @@ namespace WindowsStartupManager
 					TimeSpan.Zero,//TimeSpan.FromSeconds(0),
 					TimeSpan.FromMinutes(1));
 			}
-
-			/*this.Close();//This app is intended for on windows startup only
-			Environment.Exit(0);//Forces exit*/
+			else
+			{
+				this.trayIcon.Visibility = System.Windows.Visibility.Collapsed;
+				this.trayIcon.UpdateLayout();
+				this.Close();//This app is intended for on windows startup only (unless its the work pc)
+				//Environment.Exit(0);//Forces exit
+			}
 		}
 
 		private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -604,6 +616,18 @@ namespace WindowsStartupManager
 				this.UpdateLayout();
 			}
 		}
+
+		private void OnMenuItemExitOrHideClick(object sender, EventArgs e)
+		{
+			ExitOrHide();
+		}
+
+		private void OnMenuItemQuickCloseAppsClick(object sender, EventArgs e)
+		{
+			foreach (var app in Applications)
+				if (app.IncludeInQuickClose)
+					app.KillProcess();
+		}
 	}
 
 	public class ApplicationDetails : INotifyPropertyChanged
@@ -619,6 +643,7 @@ namespace WindowsStartupManager
 		public bool WaitForUserInput { get; private set; }
 		public int DelayAfterStartSeconds { get; private set; }
 		public bool IsEnabled { get; private set; }
+		public bool IncludeInQuickClose { get; private set; }
 
 		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
 		{
@@ -641,6 +666,7 @@ namespace WindowsStartupManager
 			this.WaitForUserInput = command.WaitForUserInput;
 			this.DelayAfterStartSeconds = command.DelayAfterStartSeconds;
 			this.IsEnabled = command.IsEnabled;
+			this.IncludeInQuickClose = command.IncludeInQuickClose;
 
 			UpdateApplicationRunningStatus(false);
 		}
@@ -716,6 +742,16 @@ namespace WindowsStartupManager
 		private bool IsChrome { get { return this.ApplicationName.Equals("chrome", StringComparison.InvariantCultureIgnoreCase); } }
 		private bool IsExplorer { get { return this.ApplicationName.Equals("explorer", StringComparison.InvariantCultureIgnoreCase); } }
 		private bool IsCmd { get { return this.ApplicationName.Equals("cmd", StringComparison.InvariantCultureIgnoreCase); } }
+		private bool IsPortableAppsPlatform
+		{
+			get
+			{
+				return this.ApplicationFullPath != null
+					&& this.ApplicationFullPath.IndexOf("Portable Apps Platform", StringComparison.InvariantCultureIgnoreCase) != -1
+					&& this.ApplicationFullPath.EndsWith("Start.exe", StringComparison.InvariantCultureIgnoreCase);
+			}
+		}
+
 		private Process GetProcessForApplication()
 		{
 			int retryCount = 0;
@@ -725,6 +761,8 @@ namespace WindowsStartupManager
 				var matchingProcs = Process.GetProcessesByName(this.ApplicationName);
 				if (matchingProcs.Length == 0)
 					matchingProcs = Process.GetProcessesByName(this.ApplicationName.InsertSpacesBeforeCamelCase());
+				if (IsPortableAppsPlatform)
+					matchingProcs = Process.GetProcessesByName("PortableAppsPlatform");
 				if (matchingProcs.Length >= 1)
 				{
 					//if (matchingProcs.Length > 1)
@@ -735,6 +773,8 @@ namespace WindowsStartupManager
 							p => p.MainModule != null
 							&& p.MainModule.FileName != null
 							&& p.MainModule.FileName.Trim('\\').ToLower() == this.ApplicationFullPath.Trim('\\').ToLower()).ToArray();
+						if (itemsMatchingExactPath.Length == 0 && IsPortableAppsPlatform)
+							itemsMatchingExactPath = matchingProcs;
 						if (itemsMatchingExactPath.Length > 1)
 						{
 							//We have the exact same processes
@@ -853,6 +893,15 @@ namespace WindowsStartupManager
 					UserMessages.ShowInfoMessage("Application already running");
 				return false;//Did not start app
 			}
+		}
+
+		public void KillProcess()
+		{
+			Process proc = GetProcessForApplication();
+			if (proc == null)
+				return;
+
+			proc.Kill();
 		}
 	}
 

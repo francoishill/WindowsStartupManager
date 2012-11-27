@@ -3,6 +3,7 @@
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 		xmlns:local='clr-namespace:WindowsStartupManager'
 		xmlns:sharedclasses='clr-namespace:SharedClasses'
+		xmlns:forms="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
 		Title="MainWindow"
 		Loaded='Window_Loaded'
 		SizeToContent='WidthAndHeight'
@@ -22,6 +23,18 @@
 	</Window.Resources>
 	<DockPanel Name='mainDockPanel'
 			   LastChildFill='True'>
+		<sharedclasses:NotificationAreaIcon x:Name='trayIcon'
+											Text="Windows Startup Manager"
+											Icon="app.ico">
+			<sharedclasses:NotificationAreaIcon.MenuItems>
+				<forms:MenuItem Text="Exit or hide"
+								Click="OnMenuItemExitOrHideClick" />
+				<forms:MenuItem x:Name='menuitemQuickCloseApps'
+								Text='Quick close apps end of work day'
+								Visible='False'
+								Click='OnMenuItemQuickCloseAppsClick' />
+			</sharedclasses:NotificationAreaIcon.MenuItems>
+		</sharedclasses:NotificationAreaIcon>
 		<!--<Label Name='labelDelayBetweenApps'
 			   DockPanel.Dock='Top'
 			   HorizontalAlignment='Center' />-->

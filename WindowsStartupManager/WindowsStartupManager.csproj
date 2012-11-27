@@ -56,6 +56,7 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
     <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
+    <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -171,6 +172,9 @@
     <Compile Include="..\..\SharedClasses\MiniIndeterminateProgress.designer.cs">
       <Link>MiniIndeterminateProgress.designer.cs</Link>
       <DependentUpon>MiniIndeterminateProgress.cs</DependentUpon>
+    </Compile>
+    <Compile Include="..\..\SharedClasses\NotifyIconWPF.cs">
+      <Link>NotifyIconWPF.cs</Link>
     </Compile>
     <Compile Include="..\..\SharedClasses\RegistryInterop.cs">
       <Link>RegistryInterop.cs</Link>
