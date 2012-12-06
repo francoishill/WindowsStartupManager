@@ -44,9 +44,9 @@ namespace WindowsStartupManager
 
 		Timer startAppsTimer;
 		Timer timerToPopulateList;
-		Timer timerToLogCpuUsage;
+		//Timer timerToLogCpuUsage;
 		bool listAlreadyPopulatedAtLeastOnce = false;
-		float cCpuUsageTolerancePercentage = 30;
+		//float cCpuUsageTolerancePercentage = 30;
 		ObjectQuery wmicpus;
 		ManagementObjectSearcher cpus;
 		DateTime? _systemStartupTime = null;
@@ -256,6 +256,7 @@ namespace WindowsStartupManager
 		bool busyPopulating = false;
 		private void PopulateApplicationsList(bool populateIfAlreadyPopulated = false)
 		{
+			//UserMessages.ShowErrorMessage("7," + busyPopulating + "," + populateIfAlreadyPopulated + "," + listAlreadyPopulatedAtLeastOnce);
 			if (busyPopulating)
 				return;
 			if (!populateIfAlreadyPopulated && listAlreadyPopulatedAtLeastOnce)
@@ -264,31 +265,41 @@ namespace WindowsStartupManager
 			busyPopulating = true;
 			//listAlreadyPopulatedAtLeastOnce = true;
 
-			Dispatcher.Invoke((Action)delegate
+			//Dispatcher.Invoke((Action)delegate
+			//{
+
+			int whyNotWorking;
+			//Why the heck does this not work if we call getfromregistry when the application starts 
+
+			Applications.Clear();
+			if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
 			{
-				Applications.Clear();
-				if (SettingsSimple.ApplicationManagerSettings.Instance.RunCommands != null)
+				var runcomms = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
+				for (int i = 0; i < runcomms.Count; i++)
 				{
-					var runcomms = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
-					for (int i = 0; i < runcomms.Count; i++)
-					{
-						if (runcomms[i].DelayAfterStartSeconds == 0)
-							runcomms[i].DelayAfterStartSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;
-						//if (!runcomms[i].IsEnabled)
-						//    runcomms[i].IsEnabled = true;
-					}
-					SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
-					foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
-						Applications.Add(new ApplicationDetails(comm));
+					if (runcomms[i].DelayAfterStartSeconds == 0)
+						runcomms[i].DelayAfterStartSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;
+					//if (!runcomms[i].IsEnabled)
+					//    runcomms[i].IsEnabled = true;
 				}
+				SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
+				foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
+					Applications.Add(new ApplicationDetails(comm));
+			}
+
+			this.Dispatcher.Invoke((Action)delegate
+			{
 				listBox1.ItemsSource = Applications;
 				labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
 				this.BringIntoView();
-
-				listAlreadyPopulatedAtLeastOnce = true;
-				timerToPopulateList.Dispose(); timerToPopulateList = null;
-				busyPopulating = false;
 			});
+
+			listAlreadyPopulatedAtLeastOnce = true;
+			if (timerToPopulateList != null)
+				timerToPopulateList.Dispose();
+			timerToPopulateList = null;
+			busyPopulating = false;
+			//});
 		}
 
 		private void OwnBringIntoView()
@@ -781,9 +792,12 @@ namespace WindowsStartupManager
 							if (!IsChrome
 								&& !IsExplorer
 								&& !IsCmd)
-								UserMessages.ShowWarningMessage(
+								ShowNoCallbackNotificationInterop.Notify(
+									err => UserMessages.ShowErrorMessage(err),
 									"Multiple processes found with name = '" + this.ApplicationName
-									+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName);
+									+ "', using first one with full path = " + matchingProcs[0].MainModule.FileName,
+									"Multiple processes",
+									ShowNoCallbackNotificationInterop.NotificationTypes.Warning);
 						}
 						else if (itemsMatchingExactPath.Length == 1)
 							return itemsMatchingExactPath.First();
@@ -810,8 +824,12 @@ namespace WindowsStartupManager
 				}
 				else
 				{
-					UserMessages.ShowWarningMessage(
-						"Unable to find process for application '" + this.ApplicationName + "', exception: " + exc.Message);
+					ShowNoCallbackNotificationInterop.Notify(
+						err => UserMessages.ShowErrorMessage(err),
+						"Unable to find process for application '" + this.ApplicationName + "', exception: " + exc.Message,
+						"Cannot find process",
+						ShowNoCallbackNotificationInterop.NotificationTypes.Error,
+						-1);
 					return null;
 				}
 			}
@@ -876,21 +894,36 @@ namespace WindowsStartupManager
 					}
 					catch (Exception exc)
 					{
-						UserMessages.ShowErrorMessage(exc.Message + Environment.NewLine + exc.StackTrace);
+						ShowNoCallbackNotificationInterop.Notify(
+							err => UserMessages.ShowErrorMessage(err),
+							exc.Message + Environment.NewLine + exc.StackTrace,
+							"Error starting application",
+							ShowNoCallbackNotificationInterop.NotificationTypes.Error,
+							-1);
 						return false;//Did not start app
 					}
 				}
 				else
 				{
 					if (showMessages)
-						UserMessages.ShowWarningMessage("No application full path defined for application " + this.ApplicationName);
+						ShowNoCallbackNotificationInterop.Notify(
+							err => UserMessages.ShowErrorMessage(err),
+							"No application full path defined for application " + this.ApplicationName,
+							"No full path",
+							ShowNoCallbackNotificationInterop.NotificationTypes.Error,
+							-1);
 					return false;//Did not start app
 				}
 			}
 			else
 			{
 				if (showMessages)
-					UserMessages.ShowInfoMessage("Application already running");
+					ShowNoCallbackNotificationInterop.Notify(
+						err => UserMessages.ShowErrorMessage(err),
+						"Application already running: " + this.ApplicationName,
+						"Already running",
+						ShowNoCallbackNotificationInterop.NotificationTypes.Warning,
+						5);
 				return false;//Did not start app
 			}
 		}
