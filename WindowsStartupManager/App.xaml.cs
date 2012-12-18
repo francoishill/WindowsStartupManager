@@ -19,7 +19,8 @@ namespace WindowsStartupManager
 				UserMessages.ShowErrorMessage("Unhandled: " + Environment.NewLine + ev.Exception.Message);
 			};
 
-			SharedClasses.AutoUpdating.CheckForUpdates(null, null);
+			SharedClasses.AutoUpdating.CheckForUpdates_ExceptionHandler();
+			//SharedClasses.AutoUpdating.CheckForUpdates(null, null);
 		}
 	}
 }
