@@ -639,6 +639,24 @@ namespace WindowsStartupManager
 				if (app.IncludeInQuickClose)
 					app.KillProcess();
 		}
+
+		private void labelAbout_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+		{
+			bool origTopmost = this.Topmost;
+			this.Topmost = false;
+			try
+			{
+				AboutWindow2.ShowAboutWindow(new System.Collections.ObjectModel.ObservableCollection<DisplayItem>()
+				{
+					new DisplayItem("Author", "Francois Hill"),
+					new DisplayItem("Icon(s) obtained from", null)
+				});
+			}
+			finally
+			{
+				this.Topmost = origTopmost;
+			}
+		}
 	}
 
 	public class ApplicationDetails : INotifyPropertyChanged

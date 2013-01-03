@@ -12,8 +12,10 @@ namespace WindowsStartupManager
 	/// </summary>
 	public partial class App : Application
 	{
-		private void Application_Startup(object sender, StartupEventArgs e)
+		protected override void OnStartup(StartupEventArgs e)
 		{
+			base.OnStartup(e);
+
 			Application.Current.DispatcherUnhandledException += (s, ev) =>
 			{
 				UserMessages.ShowErrorMessage("Unhandled: " + Environment.NewLine + ev.Exception.Message);
@@ -21,6 +23,9 @@ namespace WindowsStartupManager
 
 			SharedClasses.AutoUpdating.CheckForUpdates_ExceptionHandler();
 			//SharedClasses.AutoUpdating.CheckForUpdates(null, null);
+
+			WindowsStartupManager.MainWindow mw = new MainWindow();
+			mw.ShowDialog();
 		}
 	}
 }

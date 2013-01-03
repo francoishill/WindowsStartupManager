@@ -38,11 +38,22 @@
 		<!--<Label Name='labelDelayBetweenApps'
 			   DockPanel.Dock='Top'
 			   HorizontalAlignment='Center' />-->
-		<Label Name='labelStatus'
-			   DockPanel.Dock='Bottom'
-			   Foreground='#777'
-			   Content='label'
-			   Padding='5,10,5,5' />
+		<DockPanel DockPanel.Dock='Bottom' LastChildFill='True'>
+			<Label Content='_About'
+				   DockPanel.Dock='Right'
+				   FontSize='10'
+				   Foreground='Gray'
+				   Cursor='Hand'
+				   VerticalAlignment='Bottom'
+				   HorizontalAlignment='Right'
+				   Padding='0'
+				   MouseLeftButtonDown='labelAbout_MouseLeftButtonDown' />
+			<Label Name='labelStatus'
+				   DockPanel.Dock='Bottom'
+				   Foreground='#777'
+				   Content='label'
+				   Padding='5,10,5,5' />
+		</DockPanel>
 		<DockPanel DockPanel.Dock='Top'
 				   HorizontalAlignment='Center'>
 			<StackPanel Orientation='Vertical'>
