@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Data;
 using System.Linq;
 using System.Windows;
+using SharedClasses;
 
 namespace WindowsStartupManager
 {
