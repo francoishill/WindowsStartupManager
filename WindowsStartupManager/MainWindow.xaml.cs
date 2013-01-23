@@ -183,7 +183,7 @@ namespace WindowsStartupManager
 
 					int delayInSeconds = app.DelayAfterStartSeconds;
 					//if (delayInSeconds <= 0)
-					//    //TODO: Why still have to do this????
+					//    //Why still have to do this????
 					//    delayInSeconds = SettingsSimple.ApplicationManagerSettings.RunCommand.cDefaultDelayInSeconds;//delayInSeconds = 1;//Minimum 1 second??
 
 					//Gui updates
@@ -212,7 +212,7 @@ namespace WindowsStartupManager
 
 				if (silentWaitUntilMorningMode)//We hidden now, waiting for morning in order to restart the pc
 				{
-					//TODO: Maybe put in some way to determine the earliest we ever got into work, and the maximum duration of executing all the apps
+					//Maybe put in some way to determine the earliest we ever got into work, and the maximum duration of executing all the apps
 
 					//Rather not clearing all Applications, still used for later in "Quick close apps"
 					/*Dispatcher.Invoke((Action)delegate { Applications.Clear(); });
@@ -247,7 +247,7 @@ namespace WindowsStartupManager
 				Dispatcher.Invoke((Action)delegate { cpuUsage.Content = string.Format("Last CPU usage = {0:00}% at {1}", max, DateTime.Now.ToString("HH:mm:ss")); });
 				return max;
 			}
-			catch//TODO: Might want to look at handling these exceptions?
+			catch//Might want to look at handling these exceptions?
 			{
 				return 100;
 			}
@@ -761,7 +761,7 @@ namespace WindowsStartupManager
 				new object[] { proc, this },
 				false);
 
-				//TODO: Skip updating fullpath for now
+				//Skip updating fullpath for now
 				//this.ApplicationFullPath = proc.MainModule.FileName;
 			}
 			OnPropertyChanged("ApplicationStatus");
