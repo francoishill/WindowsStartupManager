@@ -5,8 +5,10 @@
 		xmlns:sharedclasses='clr-namespace:SharedClasses'
 		xmlns:forms="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
 		Title="MainWindow"
+		Width='600'
+		FontFamily='Comic Sans MS'
+		Icon='app.ico'
 		Loaded='Window_Loaded'
-		SizeToContent='WidthAndHeight'
 		WindowStartupLocation='Manual'
 		WindowStyle='None'
 		UseLayoutRounding='True'
@@ -16,13 +18,42 @@
 		SizeChanged='Window_SizeChanged'
 		PreviewMouseDoubleClick='Window_PreviewMouseDoubleClick'
 		Closing='Window_Closing'
-		PreviewMouseWheel='Window_PreviewMouseWheel'>
+		PreviewMouseWheel='Window_PreviewMouseWheel'
+		PreviewMouseDown='Window_PreviewMouseDown'
+		mc:Ignorable="d"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		d:DesignWidth='572'
+		Background='#222'>
+	<!--<Window.Background>
+		<RadialGradientBrush>
+			<GradientStop Color='#FF3E3E3E'
+						  Offset='0' />
+			<GradientStop Color='Black'
+						  Offset='1' />
+		</RadialGradientBrush>
+	</Window.Background>-->
+	<!--SizeToContent='WidthAndHeight'-->
 	<Window.Resources>
 		<local:ApplicationStatusToBrushConverter x:Key='applicationStatusToBrushConverter' />
 		<sharedclasses:BooleanToOpacityConverter x:Key='booleanToOpacityConverter' />
+		<sharedclasses:DateTimeToHumanfriendlyStringConverter x:Key='dateTimeToHumanfriendlyStringConverter' />
+		<sharedclasses:BooleanToVisibilityConverter x:Key='booleanToVisibilityConverter' />
 	</Window.Resources>
+	<Window.ContextMenu>
+		<ContextMenu>
+			<MenuItem Header='Get from _registry'
+					  Click='menuitemGetFromRegistry_Click' />
+			<MenuItem Header='Get from _startup folder'
+					  Click='menuitemGetFromStartupFolder_Click' />
+			<Separator />
+			<MenuItem Header='E_xit'
+					  Click='menuitemExit_Click' />
+		</ContextMenu>
+	</Window.ContextMenu>
 	<DockPanel Name='mainDockPanel'
-			   LastChildFill='True'>
+			   LastChildFill='True'
+			   Margin='10'>
 		<sharedclasses:NotificationAreaIcon x:Name='trayIcon'
 											Text="Windows Startup Manager"
 											Icon="app.ico">
@@ -38,7 +69,8 @@
 		<!--<Label Name='labelDelayBetweenApps'
 			   DockPanel.Dock='Top'
 			   HorizontalAlignment='Center' />-->
-		<DockPanel DockPanel.Dock='Bottom' LastChildFill='True'>
+		<DockPanel DockPanel.Dock='Bottom'
+				   LastChildFill='True'>
 			<Label Content='_About'
 				   DockPanel.Dock='Right'
 				   FontSize='10'
@@ -47,6 +79,7 @@
 				   VerticalAlignment='Bottom'
 				   HorizontalAlignment='Right'
 				   Padding='0'
+				   Margin='0 0 5 5'
 				   MouseLeftButtonDown='labelAbout_MouseLeftButtonDown' />
 			<Label Name='labelStatus'
 				   DockPanel.Dock='Bottom'
@@ -54,7 +87,18 @@
 				   Content='label'
 				   Padding='5,10,5,5' />
 		</DockPanel>
-		<DockPanel DockPanel.Dock='Top'
+		<StackPanel DockPanel.Dock='Top'
+					Orientation='Horizontal'
+					HorizontalAlignment='Left'>
+			<Button Name='buttonPauseStarting'
+					Content='Pause starting apps'
+					Background='Transparent'
+					Foreground='White'
+					Click='buttonPauseStarting_Click' />
+			<Label Name='cpuUsage'
+				   Visibility='Collapsed' />
+		</StackPanel>
+		<!--<DockPanel DockPanel.Dock='Top'
 				   HorizontalAlignment='Center'>
 			<StackPanel Orientation='Vertical'>
 				<StackPanel Orientation='Vertical'>
@@ -71,18 +115,10 @@
 								Background='Transparent'
 								Click='buttonGetFromStartupFolder_Click' />
 					</StackPanel>
-					<StackPanel Orientation='Horizontal'
-								HorizontalAlignment='Center'>
-						<Button Name='buttonPauseStarting'
-								Content='Pause starting apps'
-								Background='Transparent'
-								Click='buttonPauseStarting_Click' />
-						<Label Name='cpuUsage' />
-					</StackPanel>
 				</StackPanel>
 			</StackPanel>
-		</DockPanel>
-		<DockPanel DockPanel.Dock='Right'
+		</DockPanel>-->
+		<!--<DockPanel DockPanel.Dock='Right'
 				   Margin='4 0'>
 			<Button DockPanel.Dock='Top'
 					VerticalAlignment='Top'
@@ -92,14 +128,99 @@
 					VerticalAlignment='Bottom'
 					Padding='4 0'
 					Click='Button_Click'>x</Button>
-		</DockPanel>
-		<Grid>
+		</DockPanel>-->
+		<Grid Margin='0 15 0 0'>
 			<ListBox Name='listBox1'
+					 Background='Transparent'
 					 SelectionChanged='listBox1_SelectionChanged'
-					 BorderThickness='0'>
+					 BorderThickness='0'
+					 Padding='0 0 20 0'>
 				<ListBox.ItemTemplate>
 					<DataTemplate>
-						<StackPanel Orientation='Horizontal'
+						<Border Name='mainItemBorder'
+								BorderThickness='1'
+								BorderBrush='#ccc'
+								CornerRadius='3'
+								Padding='3'
+								Margin='0 0 0 15'
+								Opacity='{Binding IsEnabled,Converter={StaticResource booleanToOpacityConverter},ConverterParameter=0.25}'>
+							<DockPanel LastChildFill='True'>
+								<StackPanel DockPanel.Dock='Left'
+											Orientation='Horizontal'
+											VerticalAlignment='Center'>
+									<Image Source='Icons/input.ico'
+										   ToolTip='Should this application wait for user input before started&#x0a;(usually handy to tick this for chat applications so you do not seem "online" before you moved the mouse or pressed a keyboard key).'
+										   Visibility='{Binding WaitForUserInput, Converter={StaticResource booleanToVisibilityConverter}, ConverterParameter=HideInsteadOfCollapse}'
+										   Width='32'
+										   VerticalAlignment='Center' />
+									<Border CornerRadius='2'
+											BorderThickness='1'
+											BorderBrush='#eee'
+											Padding='3 0'
+											VerticalAlignment='Stretch'
+											Margin='10 5 0 5'
+											ToolTip='The duration (seconds) to wait after starting this app, before starting the next app.'>
+										<TextBlock Padding='0'
+												   Margin='0'
+												   VerticalAlignment='Center'
+												   Foreground='#888'
+												   FontSize='10'
+												   Text='{Binding DelayAfterStartSeconds}' />
+									</Border>
+									<Image Source='Icons/close.ico'
+										   ToolTip='Should this application close when we close down Windows Startup Manager.'
+										   Visibility='{Binding IncludeInQuickClose, Converter={StaticResource booleanToVisibilityConverter}, ConverterParameter=HideInsteadOfCollapse}'
+										   Width='32'
+										   Margin='10 0 0 0'
+										   VerticalAlignment='Center' />
+								</StackPanel>
+								<TextBlock DockPanel.Dock='Right'
+										   VerticalAlignment='Center'
+										   Margin='10 0 0 0'
+										   Text='{Binding StartupTimeIfRunning, Converter={StaticResource dateTimeToHumanfriendlyStringConverter}}'
+										   ToolTip='{Binding StartupTimeIfRunning, StringFormat="yyyy-MM-dd HH:mm:ss.fff"}'
+										   Visibility='{Binding IsRunning, Converter={StaticResource booleanToVisibilityConverter}}'
+										   Foreground='#554E78A0' />
+								<Button FontSize='16'
+										VerticalAlignment='Center'
+										Margin='10 0 0 0'
+										Background='Transparent'
+										Foreground='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToBrushConverter}}'
+										Click='ApplicationButton_Click'>
+									<Button.ToolTip>
+										<StackPanel Orientation='Horizontal'>
+											<TextBlock Text='{Binding ApplicationFullPath}' />
+											<TextBlock Text='{Binding ApplicationArguments}'
+													   Margin='5 0 0 0' />
+										</StackPanel>
+									</Button.ToolTip>
+									<ContentPresenter>
+										<ContentPresenter.Content>
+											<!--<DockPanel LastChildFill='True'>
+											<TextBlock Text='{Binding ApplicationArguments}'
+													   DockPanel.Dock='Right'
+													   Foreground='Gray'
+													   Margin='5 0'
+													   MaxWidth='150'
+													   TextTrimming='CharacterEllipsis' />-->
+											<TextBlock Text='{Binding DisplayName}'
+													   MaxWidth='250'
+													   TextTrimming='CharacterEllipsis' />
+											<!--</DockPanel>-->
+										</ContentPresenter.Content>
+									</ContentPresenter>
+								</Button>
+							</DockPanel>
+						</Border>
+						<DataTemplate.Triggers>
+							<DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"
+										 Value="True">
+								<Setter Property='Opacity'
+										TargetName='mainItemBorder'
+										Value='1' />
+							</DataTrigger>
+						</DataTemplate.Triggers>
+						<!--<StackPanel Orientation='Horizontal'
 									Opacity='{Binding IsEnabled,Converter={StaticResource booleanToOpacityConverter},ConverterParameter=0.5}'>
 							<Button Click='ApplicationButton_Click'
 									ToolTip='{Binding ApplicationFullPath}'>
@@ -117,12 +238,17 @@
 							</Button>
 							<Label Content='{Binding ApplicationStatusString}'
 								   Foreground='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToBrushConverter}}' />
-						</StackPanel>
+							<Label Content='{Binding StartupTimeIfRunning, Converter={StaticResource dateTimeToHumanfriendlyStringConverter}}'
+								   ToolTip='{Binding StartupTimeIfRunning, StringFormat="yyyy-MM-dd HH:mm:ss.fff"}'
+								   Visibility='{Binding IsRunning, Converter={StaticResource booleanToVisibilityConverter}}'
+								   Foreground='#334E78A0'/>
+						</StackPanel>-->
 					</DataTemplate>
 				</ListBox.ItemTemplate>
 			</ListBox>
 			<Label Name='labelPleaseWait'
 				   Content='Please wait while loading application list...'
+				   Background='Transparent'
 				   Foreground='Green'
 				   FontSize='20'
 				   BorderThickness='0' />

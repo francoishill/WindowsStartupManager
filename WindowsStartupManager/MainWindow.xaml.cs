@@ -21,6 +21,10 @@ using System.Reflection;
 using Microsoft.Win32;
 using System.Management;
 
+#if PlatformX86
+WindowsStartupManager needs to access external processes, including 64bit ones, so it cannot run in x86 mode, only in 'Any CPU' mode
+#endif
+
 namespace WindowsStartupManager
 {
 	/// <summary>
@@ -69,7 +73,7 @@ namespace WindowsStartupManager
 				return _systemStartupTime.Value;
 			}
 		}
-		bool skipLoggingCpuUsage = false;
+		//bool skipLoggingCpuUsage = false;
 		int minimumCPUrunningSeconds = 30;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
@@ -268,7 +272,6 @@ namespace WindowsStartupManager
 			//Dispatcher.Invoke((Action)delegate
 			//{
 
-			int whyNotWorking;
 			//Why the heck does this not work if we call getfromregistry when the application starts 
 
 			Applications.Clear();
@@ -398,16 +401,33 @@ namespace WindowsStartupManager
 		}
 
 		private ScaleTransform originalScale = new ScaleTransform(1, 1);
-		private ScaleTransform smallScale = new ScaleTransform(0.05, 0.05);
+		private ScaleTransform smallScale = new ScaleTransform(0.03, 0.03);//0.05, 0.05);
 		private void Window_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
 		{
+			//Removed the double-click scaling for now, just use middle-mouse
+			//ToggleScaling();
+		}
+
+		private void ToggleScaling()
+		{
+			var previousSizeToContent = this.SizeToContent;
+			this.SizeToContent = System.Windows.SizeToContent.WidthAndHeight;
+
 			if (mainDockPanel.LayoutTransform != smallScale)
 				mainDockPanel.LayoutTransform = smallScale;
 			else
 				mainDockPanel.LayoutTransform = originalScale;
+
+			this.UpdateLayout();
+			this.SizeToContent = previousSizeToContent;
 		}
 
 		private void buttonGetFromRegistry_Click(object sender, RoutedEventArgs e)
+		{
+			GetCommandsFromRegistry();
+		}
+
+		private void GetCommandsFromRegistry()
 		{
 			var commands = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
 			if (commands == null)
@@ -486,6 +506,11 @@ namespace WindowsStartupManager
 		}
 
 		private void buttonGetFromStartupFolder_Click(object sender, RoutedEventArgs e)
+		{
+			GetCommandsFromStartupFolder();
+		}
+
+		private void GetCommandsFromStartupFolder()
 		{
 			var commands = SettingsSimple.ApplicationManagerSettings.Instance.RunCommands;
 			if (commands == null)
@@ -628,6 +653,12 @@ namespace WindowsStartupManager
 			}
 		}
 
+		private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+		{
+			if (e.MiddleButton == MouseButtonState.Pressed)
+				ToggleScaling();
+		}
+
 		private void OnMenuItemExitOrHideClick(object sender, EventArgs e)
 		{
 			ExitOrHide();
@@ -649,7 +680,9 @@ namespace WindowsStartupManager
 				AboutWindow2.ShowAboutWindow(new System.Collections.ObjectModel.ObservableCollection<DisplayItem>()
 				{
 					new DisplayItem("Author", "Francois Hill"),
-					new DisplayItem("Icon(s) obtained from", null)
+					new DisplayItem("Icon(s) obtained from", "http://www.iconfinder.com",
+						"http://www.iconfinder.com/icondetails/1270/128/devices_hardware_input_settings_icon",
+						"http://www.iconfinder.com/icondetails/34218/128/add_cross_delete_exit_remove_icon")
 				});
 			}
 			finally
@@ -657,12 +690,30 @@ namespace WindowsStartupManager
 				this.Topmost = origTopmost;
 			}
 		}
+
+		private void menuitemGetFromRegistry_Click(object sender, RoutedEventArgs e)
+		{
+			GetCommandsFromRegistry();
+		}
+
+		private void menuitemGetFromStartupFolder_Click(object sender, RoutedEventArgs e)
+		{
+			GetCommandsFromStartupFolder();
+		}
+
+		private void menuitemExit_Click(object sender, RoutedEventArgs e)
+		{
+			this.Close();
+		}
 	}
 
 	public class ApplicationDetails : INotifyPropertyChanged
 	{
-		public SettingsSimple.ApplicationManagerSettings.RunCommand Command;
 		public enum ApplicationStatusses { Running, NotResponding, NotRunning, RanSuccessfullyButClosedAgain, InvalidPath };
+
+		private static List<ApplicationDetails> ListOfCreatedItems = new List<ApplicationDetails>();
+
+		public SettingsSimple.ApplicationManagerSettings.RunCommand Command;
 		public string ApplicationName { get; private set; }
 		public string DisplayName { get; private set; }
 		public ApplicationStatusses ApplicationStatus { get; private set; }
@@ -674,7 +725,16 @@ namespace WindowsStartupManager
 		public bool IsEnabled { get; private set; }
 		public bool IncludeInQuickClose { get; private set; }
 
-		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
+		public DateTime StartupTimeIfRunning { get; private set; }
+		public bool IsRunning { get { return this.ApplicationStatus == ApplicationStatusses.Running; } }
+
+		private ApplicationDetails()
+		{
+			ListOfCreatedItems.Add(this);
+		}
+
+		public ApplicationDetails(SettingsSimple.ApplicationManagerSettings.RunCommand command)
+			: this()//string ApplicationName, string ApplicationFullPath = null, string ApplicationArguments = null, ApplicationStatusses ApplicationStatus = ApplicationStatusses.NotRunning)
 		{
 			this.Command = command;
 			string path = command.AppPath;
@@ -699,6 +759,23 @@ namespace WindowsStartupManager
 
 			UpdateApplicationRunningStatus(false);
 		}
+
+		~ApplicationDetails()
+		{
+			if (ListOfCreatedItems.Contains(this))
+				ListOfCreatedItems.Remove(this);
+		}
+
+		//A timer to make sure our HumanFriendly dates are correct (Category.DueDate and Items[].Created)
+		private static System.Threading.Timer _timerToEnsureHumanFriendlyDatesAlwaysCorrect = new System.Threading.Timer(
+			delegate
+			{
+				foreach (var appItem in ListOfCreatedItems)
+					appItem.OnPropertyChanged("StartupTimeIfRunning");
+			},
+			null,
+			TimeSpan.FromSeconds(0),
+			TimeSpan.FromSeconds(0.9));//Just under a second, bit more certain
 
 		public static string GetApplicationFullPathFromOwnAppname(string ownApplicationName)
 		{
@@ -729,6 +806,9 @@ namespace WindowsStartupManager
 
 		public void UpdateApplicationRunningStatus(bool markExplorerAsRunning)
 		{
+			//Maybe do not change it back to DateTime.MinValue also when status is 'ApplicationStatusses.RanSuccessfullyButClosedAgain'
+			this.StartupTimeIfRunning = DateTime.MinValue;
+
 			Process proc = GetProcessForApplication();
 			if (proc == null)
 			{
@@ -744,6 +824,7 @@ namespace WindowsStartupManager
 				if (markExplorerAsRunning || !IsExplorer && !IsCmd)
 				{
 					this.ApplicationStatus = ApplicationStatusses.Running;
+					this.StartupTimeIfRunning = proc.StartTime;
 					this.successfullyRanOnce = true;
 				}
 
@@ -764,8 +845,11 @@ namespace WindowsStartupManager
 				//Skip updating fullpath for now
 				//this.ApplicationFullPath = proc.MainModule.FileName;
 			}
-			OnPropertyChanged("ApplicationStatus");
-			OnPropertyChanged("ApplicationStatusString");
+			OnPropertyChanged(
+				"ApplicationStatus",
+				"ApplicationStatusString",
+				"StartupTimeIfRunning",
+				"IsRunning");
 		}
 
 		private bool IsChrome { get { return this.ApplicationName.Equals("chrome", StringComparison.InvariantCultureIgnoreCase); } }
@@ -854,7 +938,7 @@ namespace WindowsStartupManager
 		}
 
 		public event PropertyChangedEventHandler PropertyChanged = new PropertyChangedEventHandler(delegate { });
-		public void OnPropertyChanged(string propertyName) { PropertyChanged(this, new PropertyChangedEventArgs(propertyName)); }
+		public void OnPropertyChanged(params string[] propertyNames) { foreach (var pn in propertyNames) PropertyChanged(this, new PropertyChangedEventArgs(pn)); }
 
 		private bool successfullyRanOnce = false;
 		//true=started now,false=could not start,null=already started

@@ -24,7 +24,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NOTUSEINTERCEPTOR,WPF</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NOTUSEINTERCEPTOR,WPF,PlatformX86</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -33,7 +33,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE;NOTUSEINTERCEPTOR,WPF</DefineConstants>
+    <DefineConstants>TRACE;NOTUSEINTERCEPTOR,WPF,PlatformX86</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -105,6 +105,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="..\..\SharedClasses\WpfNotificationWindow.xaml">
+      <Link>WpfNotificationWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -124,6 +129,9 @@
     </Compile>
     <Compile Include="..\..\SharedClasses\EncodeAndDecodeInterop.cs">
       <Link>EncodeAndDecodeInterop.cs</Link>
+    </Compile>
+    <Compile Include="..\..\SharedClasses\EnumsInterop.cs">
+      <Link>EnumsInterop.cs</Link>
     </Compile>
     <Compile Include="..\..\SharedClasses\FileSystemInterop.cs">
       <Link>FileSystemInterop.cs</Link>
@@ -235,6 +243,10 @@
     <Compile Include="..\..\SharedClasses\WPFHelper.cs">
       <Link>WPFHelper.cs</Link>
     </Compile>
+    <Compile Include="..\..\SharedClasses\WpfNotificationWindow.xaml.cs">
+      <Link>WpfNotificationWindow.xaml.cs</Link>
+      <DependentUpon>WpfNotificationWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -282,9 +294,6 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="app.ico" />
-  </ItemGroup>
-  <ItemGroup>
     <COMReference Include="Shell32">
       <Guid>{50A7E9B0-70EF-11D1-B75A-00A0C90564FE}</Guid>
       <VersionMajor>1</VersionMajor>
@@ -294,6 +303,15 @@
       <Isolated>False</Isolated>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </COMReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Icons\input.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Icons\close.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
