@@ -926,12 +926,20 @@ namespace WindowsStartupManager
 				}
 				else
 				{
-					ShowNoCallbackNotificationInterop.Notify(
-						err => UserMessages.ShowErrorMessage(err),
-						"Unable to find process for application '" + this.ApplicationName + "', exception: " + exc.Message,
-						"Cannot find process",
-						ShowNoCallbackNotificationInterop.NotificationTypes.Error,
-						-1);
+					try
+					{
+						ShowNoCallbackNotificationInterop.Notify(
+							err => UserMessages.ShowErrorMessage(err),
+							"Unable to find process for application '" + this.ApplicationName + "', exception: " + exc.Message,
+							"Cannot find process",
+							ShowNoCallbackNotificationInterop.NotificationTypes.Error,
+							-1);
+					}
+					catch (Exception exc2)
+					{
+						UserMessages.ShowErrorMessage("Cannot show notification, unable to find process for application '"
+							+ this.ApplicationName + "', exception: " + exc.Message + ". Error message for notification: " + exc2.Message);
+					}
 					return null;
 				}
 			}
