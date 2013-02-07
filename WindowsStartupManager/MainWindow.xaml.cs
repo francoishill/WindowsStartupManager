@@ -1,25 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
-using System.Text;
+using System.Management;
+using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Collections.ObjectModel;
-using SharedClasses;
-using System.IO;
-using System.Diagnostics;
-using System.Threading;
-using ApplicationManagerSettings = SharedClasses.GlobalSettings.ApplicationManagerSettings;
-using System.ComponentModel;
-using System.Reflection;
 using Microsoft.Win32;
-using System.Management;
+using SharedClasses;
+using Notifs = SharedClasses.ShowNoCallbackNotificationInterop;
 
 #if PlatformX86
 WindowsStartupManager needs to access external processes, including 64bit ones, so it cannot run in x86 mode, only in 'Any CPU' mode
@@ -204,8 +201,8 @@ namespace WindowsStartupManager
 
 					UpdateLayoutThreadsafe(this);
 
-					if (startupSuccess == true)//Was started now (not started previously, did not fail)
-						Thread.Sleep(delayInSeconds * 1000);
+					/*if (startupSuccess == true)//Was started now (not started previously, did not fail)
+						Thread.Sleep(delayInSeconds * 1000);*/
 					//if (GetMaxCpuUsage() >= cCpuUsageTolerancePercentage)//If CPU usage is too high
 					//    break;
 				}
@@ -719,6 +716,8 @@ namespace WindowsStartupManager
 		public ApplicationStatusses ApplicationStatus { get; private set; }
 		public string ApplicationStatusString { get { return ApplicationStatus.ToString().InsertSpacesBeforeCamelCase(); } }
 		public string ApplicationFullPath { get; private set; }
+		public string FullpathToProcessExe { get; private set; }//Usually required with Portable apps
+		private bool ProcessExeDefersFromStartExe { get; set; }
 		public string ApplicationArguments { get; private set; }
 		public bool WaitForUserInput { get; private set; }
 		public int DelayAfterStartSeconds { get; private set; }
@@ -745,10 +744,21 @@ namespace WindowsStartupManager
 
 			this.ApplicationName = appname;
 			this.ApplicationStatus = ApplicationStatusses.NotRunning;
+
+			this.ProcessExeDefersFromStartExe = false;
 			if (command.PathType == SettingsSimple.ApplicationManagerSettings.RunCommand.PathTypes.FullPath)
+			{
 				this.ApplicationFullPath = path;
+				bool exeToKillDefersFromOriginal = false;
+				this.FullpathToProcessExe = !string.IsNullOrWhiteSpace(FullpathToProcessExe)
+					? FullpathToProcessExe : GetFullpathToProcessExe_FromFullpath(path, out exeToKillDefersFromOriginal);
+				this.ProcessExeDefersFromStartExe = exeToKillDefersFromOriginal;
+			}
 			else
+			{
 				this.ApplicationFullPath = GetApplicationFullPathFromOwnAppname(this.ApplicationName);
+				this.FullpathToProcessExe = this.ApplicationFullPath;
+			}
 			this.ApplicationArguments = command.CommandlineArguments;//string.Join(" ", command.CommandlineArguments.Select(c => "\"" + c.Trim('\"') + "\""));
 
 			this.DisplayName = command.DisplayName;
@@ -758,6 +768,41 @@ namespace WindowsStartupManager
 			this.IncludeInQuickClose = command.IncludeInQuickClose;
 
 			UpdateApplicationRunningStatus(false);
+		}
+
+		private static string GetFullpathToProcessExe_FromFullpath(string originallyStartedExepath, out bool exeToKillDefersFromOriginal)
+		{
+			/*If we run a Portable app the Exe that we run starts up another EXE,
+			 * maybe build support in for this. I.e. check if the Foldername ends with "Portable"
+			 * then get the piece before "Portable" (like take Skype if it was SkypePortable) then got
+			 * into the folder "App\Skype\" and search for exe named "SKype.exe" in nested folders.
+			 * Warn if we found multiple or no matches.*/
+			string folderPath = Path.GetDirectoryName(originallyStartedExepath);
+			string folderName = Path.GetFileName(folderPath);
+			if (!folderName.EndsWith("Portable", StringComparison.InvariantCultureIgnoreCase))
+			{
+				exeToKillDefersFromOriginal = false;
+				return originallyStartedExepath;//Not a portable app?
+			}
+
+			string appname = folderName.Substring(0, folderName.Length - "Portable".Length);
+			string appFolderpath = Path.Combine(folderPath, "App", appname);//should end up being like ...\PortableApps\SkypePortable\App\Skype
+			string exeFilenameToFind = "\\" + appname + ".exe";
+			var matchedExeFiles = Directory.GetFiles(appFolderpath, "*.exe", SearchOption.AllDirectories)
+				.Where(path => path.EndsWith(exeFilenameToFind, StringComparison.InvariantCultureIgnoreCase))
+				.ToList();
+			if (matchedExeFiles.Count == 0)
+			{
+				Notifs.Notify(err => UserMessages.ShowErrorMessage(err),
+					"Possible portable app found but could not find '" + exeFilenameToFind + "' in nested folders from portable exe '" + originallyStartedExepath + "'");
+				exeToKillDefersFromOriginal = false;
+				return originallyStartedExepath;
+			}
+			if (matchedExeFiles.Count > 1)
+				Notifs.Notify(err => UserMessages.ShowErrorMessage(err),
+					"Multiple portable app EXEs found (using first) with name '" + exeFilenameToFind + "' in nested folders from portable exe '" + originallyStartedExepath + "'");
+			exeToKillDefersFromOriginal = true;
+			return matchedExeFiles[0];
 		}
 
 		~ApplicationDetails()
@@ -861,7 +906,7 @@ namespace WindowsStartupManager
 			{
 				return this.ApplicationFullPath != null
 					&& this.ApplicationFullPath.IndexOf("Portable Apps Platform", StringComparison.InvariantCultureIgnoreCase) != -1
-					&& this.ApplicationFullPath.EndsWith("Start.exe", StringComparison.InvariantCultureIgnoreCase);
+					&& this.ApplicationFullPath.EndsWith("\\Start.exe", StringComparison.InvariantCultureIgnoreCase);
 			}
 		}
 
@@ -871,7 +916,11 @@ namespace WindowsStartupManager
 		retryOnException:
 			try
 			{
-				var matchingProcs = Process.GetProcessesByName(this.ApplicationName);
+				var matchingProcs =
+					Process.GetProcessesByName(
+						this.ProcessExeDefersFromStartExe
+						? Path.GetFileNameWithoutExtension(this.FullpathToProcessExe)
+						: this.ApplicationName);
 				if (matchingProcs.Length == 0)
 					matchingProcs = Process.GetProcessesByName(this.ApplicationName.InsertSpacesBeforeCamelCase());
 				if (IsPortableAppsPlatform)
@@ -880,12 +929,12 @@ namespace WindowsStartupManager
 				{
 					//if (matchingProcs.Length > 1)
 					//{
-					if (File.Exists(this.ApplicationFullPath))
+					if (File.Exists(this.FullpathToProcessExe))
 					{
 						var itemsMatchingExactPath = matchingProcs.Where(
 							p => p.MainModule != null
 							&& p.MainModule.FileName != null
-							&& p.MainModule.FileName.Trim('\\').ToLower() == this.ApplicationFullPath.Trim('\\').ToLower()).ToArray();
+							&& p.MainModule.FileName.Trim('\\').ToLower() == this.FullpathToProcessExe.Trim('\\').ToLower()).ToArray();
 						if (itemsMatchingExactPath.Length == 0 && IsPortableAppsPlatform)
 							itemsMatchingExactPath = matchingProcs;
 						if (itemsMatchingExactPath.Length > 1)
@@ -907,7 +956,7 @@ namespace WindowsStartupManager
 						{
 							//UserMessages.ShowWarningMessage(
 							//    "Unable to find process (with exact same file path) for app '" + this.ApplicationName
-							//    + "', full path = " + this.ApplicationFullPath);
+							//    + "', full path = " + this.FullpathToProcessExe);
 							return null;//No valid match found
 						}
 					}
@@ -985,20 +1034,45 @@ namespace WindowsStartupManager
 
 						if (proc != null)
 							successfullyRanOnce = true;
+
+						Process proc2 = null;
+						if (!this.ProcessExeDefersFromStartExe)
+							Thread.Sleep(this.DelayAfterStartSeconds * 1000);
+						else
+						{
+							proc2 = GetProcessForApplication();
+							if (proc2 != null)
+								successfullyRanOnce = true;
+							Thread.Sleep(this.DelayAfterStartSeconds * 1000);
+							if (proc2 == null)
+							{//Try again after delay
+								proc2 = GetProcessForApplication();
+								if (proc2 != null)
+									successfullyRanOnce = true;
+							}
+						}
+
 						this.UpdateApplicationRunningStatus(true);
 
 						ThreadingInterop.PerformOneArgFunctionSeperateThread((arg) =>
 						{
-							object[] ProcAndAppDet = arg as object[];
-							if (ProcAndAppDet != null && ProcAndAppDet.Length == 2 && ProcAndAppDet[0] is Process && ProcAndAppDet[1] is ApplicationDetails)
+							object[] ProcAndAppDet_AndProcToKill = arg as object[];
+							if (ProcAndAppDet_AndProcToKill != null
+								&& ProcAndAppDet_AndProcToKill.Length == 3
+								&& ProcAndAppDet_AndProcToKill[0] is Process
+								&& ProcAndAppDet_AndProcToKill[1] is ApplicationDetails
+								&& (ProcAndAppDet_AndProcToKill[2] == null || ProcAndAppDet_AndProcToKill[2] is Process))
 							{
-								Process thisProc = ProcAndAppDet[0] as Process;
-								ApplicationDetails thisAppdet = ProcAndAppDet[1] as ApplicationDetails;
+								Process thisProc = ProcAndAppDet_AndProcToKill[0] as Process;
+								ApplicationDetails thisAppdet = ProcAndAppDet_AndProcToKill[1] as ApplicationDetails;
+								Process processToKill = ProcAndAppDet_AndProcToKill[2] as Process;
 								thisProc.WaitForExit();
+								if (processToKill != null)
+									processToKill.WaitForExit();
 								thisAppdet.UpdateApplicationRunningStatus(true);
 							}
 						},
-						new object[] { proc, this },
+						new object[] { proc, this, proc2 },
 						false);
 						return true;
 					}

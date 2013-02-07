@@ -188,10 +188,16 @@
 										Foreground='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToBrushConverter}}'
 										Click='ApplicationButton_Click'>
 									<Button.ToolTip>
-										<StackPanel Orientation='Horizontal'>
-											<TextBlock Text='{Binding ApplicationFullPath}' />
-											<TextBlock Text='{Binding ApplicationArguments}'
-													   Margin='5 0 0 0' />
+										<StackPanel Orientation='Vertical'>
+											<StackPanel Orientation='Horizontal'>
+												<TextBlock Text='{Binding ApplicationFullPath}' />
+												<TextBlock Text='{Binding ApplicationArguments}'
+														   Margin='5 0 0 0' />
+											</StackPanel>
+											<StackPanel Orientation='Horizontal'>
+												<TextBlock Text='Process to kill (defer if portable app): ' />
+												<TextBlock Text='{Binding FullpathToProcessExe}' />
+											</StackPanel>
 										</StackPanel>
 									</Button.ToolTip>
 									<ContentPresenter>
