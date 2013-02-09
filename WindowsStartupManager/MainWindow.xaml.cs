@@ -700,7 +700,8 @@ namespace WindowsStartupManager
 
 		private void menuitemExit_Click(object sender, RoutedEventArgs e)
 		{
-			this.Close();
+			ExitOrHide();
+			//this.Close();
 		}
 	}
 

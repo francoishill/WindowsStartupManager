@@ -47,7 +47,7 @@
 			<MenuItem Header='Get from _startup folder'
 					  Click='menuitemGetFromStartupFolder_Click' />
 			<Separator />
-			<MenuItem Header='E_xit'
+			<MenuItem Header='E_xit or hide'
 					  Click='menuitemExit_Click' />
 		</ContextMenu>
 	</Window.ContextMenu>
