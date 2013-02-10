@@ -789,6 +789,13 @@ namespace WindowsStartupManager
 			string appname = folderName.Substring(0, folderName.Length - "Portable".Length);
 			string appFolderpath = Path.Combine(folderPath, "App", appname);//should end up being like ...\PortableApps\SkypePortable\App\Skype
 			string exeFilenameToFind = "\\" + appname + ".exe";
+
+			if (!Directory.Exists(appFolderpath))
+			{
+				exeToKillDefersFromOriginal = false;
+				return originallyStartedExepath;
+			}
+
 			var matchedExeFiles = Directory.GetFiles(appFolderpath, "*.exe", SearchOption.AllDirectories)
 				.Where(path => path.EndsWith(exeFilenameToFind, StringComparison.InvariantCultureIgnoreCase))
 				.ToList();
