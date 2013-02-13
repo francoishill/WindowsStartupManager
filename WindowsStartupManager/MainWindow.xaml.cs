@@ -795,7 +795,7 @@ namespace WindowsStartupManager
 				exeToKillDefersFromOriginal = false;
 				return originallyStartedExepath;
 			}
-
+			
 			var matchedExeFiles = Directory.GetFiles(appFolderpath, "*.exe", SearchOption.AllDirectories)
 				.Where(path => path.EndsWith(exeFilenameToFind, StringComparison.InvariantCultureIgnoreCase))
 				.ToList();
@@ -1152,7 +1152,7 @@ namespace WindowsStartupManager
 				default:
 					return Brushes.Transparent;
 			}
-		}
+		}		
 
 		public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
 		{
