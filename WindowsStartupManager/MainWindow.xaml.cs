@@ -43,7 +43,8 @@ namespace WindowsStartupManager
 			cpus = new ManagementObjectSearcher(wmicpus);
 		}
 
-		Timer startAppsTimer;
+		//Timer startAppsTimer;
+		System.Windows.Forms.Timer startAppsTimer;
 		Timer timerToPopulateList;
 		//Timer timerToLogCpuUsage;
 		bool listAlreadyPopulatedAtLeastOnce = false;
@@ -72,6 +73,7 @@ namespace WindowsStartupManager
 		}
 		//bool skipLoggingCpuUsage = false;
 		int minimumCPUrunningSeconds = 30;
+		bool alreadySetTimerTo5secs = false;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
 			this.MaxHeight = System.Windows.SystemParameters.WorkArea.Height - 300;
@@ -97,9 +99,17 @@ namespace WindowsStartupManager
 				System.Threading.Timeout.Infinite);
 
 			//Timer to check if must start apps keep this window on top
-			startAppsTimer =
-				new Timer(delegate
+			startAppsTimer = new System.Windows.Forms.Timer();
+			startAppsTimer.Interval = (int)TimeSpan.FromMilliseconds(10).TotalMilliseconds;//We set this later to 5 secs
+			startAppsTimer.Tick +=
+				delegate
 				{
+					if (!alreadySetTimerTo5secs)
+					{
+						alreadySetTimerTo5secs = true;
+						startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+					}
+
 					Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
 					//if (!listAlreadyPopulatedAtLeastOnce)
 					//    Dispatcher.Invoke((Action)delegate
@@ -116,10 +126,8 @@ namespace WindowsStartupManager
 
 					/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
 						StartAllApplications();*/
-				},
-				null,
-				TimeSpan.FromSeconds(0),
-				TimeSpan.FromSeconds(5));
+				};
+			startAppsTimer.Start();
 
 			//timerToLogCpuUsage = new Timer(delegate
 			//    {
