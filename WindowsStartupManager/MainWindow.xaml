@@ -142,7 +142,7 @@
 								BorderBrush='#ccc'
 								CornerRadius='3'
 								Padding='3'
-								Margin='0 0 0 15'
+								Margin='0 0 0 5'
 								Opacity='{Binding IsEnabled,Converter={StaticResource booleanToOpacityConverter},ConverterParameter=0.25}'>
 							<DockPanel LastChildFill='True'>
 								<StackPanel DockPanel.Dock='Left'
@@ -151,7 +151,7 @@
 									<Image Source='Icons/input.ico'
 										   ToolTip='Should this application wait for user input before started&#x0a;(usually handy to tick this for chat applications so you do not seem "online" before you moved the mouse or pressed a keyboard key).'
 										   Visibility='{Binding WaitForUserInput, Converter={StaticResource booleanToVisibilityConverter}, ConverterParameter=HideInsteadOfCollapse}'
-										   Width='32'
+										   Width='16'
 										   VerticalAlignment='Center' />
 									<Border CornerRadius='2'
 											BorderThickness='1'
@@ -170,7 +170,7 @@
 									<Image Source='Icons/close.ico'
 										   ToolTip='Should this application close when we close down Windows Startup Manager.'
 										   Visibility='{Binding IncludeInQuickClose, Converter={StaticResource booleanToVisibilityConverter}, ConverterParameter=HideInsteadOfCollapse}'
-										   Width='32'
+										   Width='16'
 										   Margin='10 0 0 0'
 										   VerticalAlignment='Center' />
 								</StackPanel>
@@ -181,7 +181,7 @@
 										   ToolTip='{Binding StartupTimeIfRunning, StringFormat="yyyy-MM-dd HH:mm:ss.fff"}'
 										   Visibility='{Binding IsRunning, Converter={StaticResource booleanToVisibilityConverter}}'
 										   Foreground='#554E78A0' />
-								<Button FontSize='16'
+								<Button FontSize='12'
 										VerticalAlignment='Center'
 										Margin='10 0 0 0'
 										Background='Transparent'

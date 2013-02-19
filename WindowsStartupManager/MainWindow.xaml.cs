@@ -98,34 +98,42 @@ namespace WindowsStartupManager
 				200,
 				System.Threading.Timeout.Infinite);
 
+			ShowNoCallbackNotificationInterop.Notify(err => UserMessages.ShowErrorMessage(err), "Hallo", secondsToShow: 5);
+
 			//Timer to check if must start apps keep this window on top
 			startAppsTimer = new System.Windows.Forms.Timer();
 			startAppsTimer.Interval = (int)TimeSpan.FromMilliseconds(10).TotalMilliseconds;//We set this later to 5 secs
 			startAppsTimer.Tick +=
 				delegate
 				{
-					if (!alreadySetTimerTo5secs)
-					{
-						alreadySetTimerTo5secs = true;
-						startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
-					}
+					ThreadingInterop.DoAction(
+						delegate
+						{
+							if (!alreadySetTimerTo5secs)
+							{
+								alreadySetTimerTo5secs = true;
+								startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+							}
 
-					Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
-					//if (!listAlreadyPopulatedAtLeastOnce)
-					//    Dispatcher.Invoke((Action)delegate
-					//    {
-					//        PopulateApplicationsList();
-					//    });
+							Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
+							//if (!listAlreadyPopulatedAtLeastOnce)
+							//    Dispatcher.Invoke((Action)delegate
+							//    {
+							//        PopulateApplicationsList();
+							//    });
 
-					if (IsSystemRunningMinimumDuration())//Check system already running a while
-					{
-						if (!listAlreadyPopulatedAtLeastOnce)
-							PopulateApplicationsList();
-						StartAllApplications();
-					}
+							if (IsSystemRunningMinimumDuration())//Check system already running a while
+							{
+								if (!listAlreadyPopulatedAtLeastOnce)
+									PopulateApplicationsList();
+								StartAllApplications();
+							}
 
-					/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
-						StartAllApplications();*/
+							/*if (GetMaxCpuUsage() < cCpuUsageTolerancePercentage)//Check that CPU usage is low enough
+								StartAllApplications();*/
+						},
+						false,
+						apartmentState: ApartmentState.STA);
 				};
 			startAppsTimer.Start();
 
