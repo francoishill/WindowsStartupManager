@@ -98,8 +98,6 @@ namespace WindowsStartupManager
 				200,
 				System.Threading.Timeout.Infinite);
 
-			ShowNoCallbackNotificationInterop.Notify(err => UserMessages.ShowErrorMessage(err), "Hallo", secondsToShow: 5);
-
 			//Timer to check if must start apps keep this window on top
 			startAppsTimer = new System.Windows.Forms.Timer();
 			startAppsTimer.Interval = (int)TimeSpan.FromMilliseconds(10).TotalMilliseconds;//We set this later to 5 secs
