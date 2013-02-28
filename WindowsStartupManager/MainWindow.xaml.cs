@@ -45,7 +45,7 @@ namespace WindowsStartupManager
 
 		//Timer startAppsTimer;
 		System.Windows.Forms.Timer startAppsTimer;
-		Timer timerToPopulateList;
+		System.Windows.Forms.Timer timerToPopulateList;
 		//Timer timerToLogCpuUsage;
 		bool listAlreadyPopulatedAtLeastOnce = false;
 		//float cCpuUsageTolerancePercentage = 30;
@@ -72,7 +72,7 @@ namespace WindowsStartupManager
 			}
 		}
 		//bool skipLoggingCpuUsage = false;
-		int minimumCPUrunningSeconds = 30;
+		int cMinimumCPUrunningSeconds = 30;
 		bool alreadySetTimerTo5secs = false;
 		private void Window_Loaded(object sender, RoutedEventArgs e)
 		{
@@ -83,20 +83,21 @@ namespace WindowsStartupManager
 
 			if (IsSystemRunningMinimumDuration())
 				labelStatus.Content = "CPU already running more than "
-					+ minimumCPUrunningSeconds + " seconds, applications to be started soon";
+					+ cMinimumCPUrunningSeconds + " seconds, applications to be started soon";
 			else
 				labelStatus.Content = "Waiting for CPU to be running more than "
-					+ minimumCPUrunningSeconds + " seconds (currently " + GetCPUrunningDuration().TotalSeconds + " seconds)";
+					+ cMinimumCPUrunningSeconds + " seconds (currently " + GetCPUrunningDuration().TotalSeconds + " seconds)";
 
 			//Timer to populate the list with applications
 			timerToPopulateList =
-				new Timer(delegate
+				new System.Windows.Forms.Timer();
+			timerToPopulateList.Interval = 200;
+			timerToPopulateList.Tick +=
+				delegate
 				{
 					PopulateApplicationsList();
-				},
-				null,
-				200,
-				System.Threading.Timeout.Infinite);
+				};
+			timerToPopulateList.Start();
 
 			//Timer to check if must start apps keep this window on top
 			startAppsTimer = new System.Windows.Forms.Timer();
@@ -113,7 +114,7 @@ namespace WindowsStartupManager
 								startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
 							}
 
-							Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
+							//Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
 							//if (!listAlreadyPopulatedAtLeastOnce)
 							//    Dispatcher.Invoke((Action)delegate
 							//    {
@@ -167,7 +168,7 @@ namespace WindowsStartupManager
 
 		private bool IsSystemRunningMinimumDuration()
 		{
-			return GetCPUrunningDuration().TotalSeconds > minimumCPUrunningSeconds;
+			return GetCPUrunningDuration().TotalSeconds > cMinimumCPUrunningSeconds;
 		}
 
 		bool isbusyStarting = false;
@@ -214,6 +215,7 @@ namespace WindowsStartupManager
 					//    WPFHelper.DoEvents();
 
 					UpdateLayoutThreadsafe(this);
+					UpdateLayoutThreadsafe(dataGrid1);
 
 					/*if (startupSuccess == true)//Was started now (not started previously, did not fail)
 						Thread.Sleep(delayInSeconds * 1000);*/
@@ -304,6 +306,8 @@ namespace WindowsStartupManager
 			this.Dispatcher.Invoke((Action)delegate
 			{
 				listBox1.ItemsSource = Applications;
+				dataGrid1.ItemsSource = Applications;
+
 				labelPleaseWait.Visibility = System.Windows.Visibility.Collapsed;
 				this.BringIntoView();
 			});
@@ -717,6 +721,62 @@ namespace WindowsStartupManager
 			ExitOrHide();
 			//this.Close();
 		}
+
+		private void dataGrid1_AutoGeneratingColumn_1(object sender, DataGridAutoGeneratingColumnEventArgs e)
+		{
+			DataGrid dg = sender as DataGrid;
+			if (dg == null) return;
+
+			if (e.PropertyName.Equals("ApplicationStatus", StringComparison.InvariantCultureIgnoreCase))//We cannot simply make 'ApplicationStatus' protected, otherwise the WPF 
+			{
+				e.Cancel = true;
+				return;
+			}
+
+			if (e.PropertyType == typeof(Boolean) || e.PropertyType == typeof(Nullable<Boolean>))
+			{
+				//if (e.PropertyType == typeof(Nullable<bool>))
+				//{
+				DataGridCheckBoxColumn column = new DataGridCheckBoxColumn();
+				column.Header = e.PropertyName;
+				column.IsReadOnly = false;
+				column.IsThreeState = e.PropertyType == typeof(Nullable<Boolean>);
+				column.Binding = new Binding() { Mode = BindingMode.OneWay, Path = new PropertyPath(e.PropertyName) };
+				column.ElementStyle = dg.FindResource("DiscreteCheckBoxStyle_Readonly") as Style;
+				e.Column = column;
+				//}
+			}
+			else if (e.PropertyType == typeof(ImageSource))
+			{
+				DataGridTemplateColumn column = new DataGridTemplateColumn();
+				column.Header = e.PropertyName;
+				column.CellTemplate = dg.FindResource("ImageTemplate") as DataTemplate;
+				e.Column = column;
+			}
+			else if (e.PropertyType == typeof(DateTime))
+			{
+				DataGridTextColumn column = new DataGridTextColumn();
+				column.Header = e.PropertyName;
+				column.Binding = new Binding() { Mode = BindingMode.OneWay, Path = new PropertyPath(e.PropertyName), StringFormat = @"HH:mm" };
+				e.Column = column;
+			}
+
+			string displayName = ReflectionInterop.GetPropertyDisplayName(e.PropertyDescriptor);
+			if (!string.IsNullOrEmpty(displayName))
+				e.Column.Header = displayName;
+			string descriptionForTooltips = ReflectionInterop.GetPropertyDescription(e.PropertyDescriptor);
+			if (!string.IsNullOrWhiteSpace(descriptionForTooltips))
+				ToolTipService.SetToolTip(e.Column, descriptionForTooltips);
+		}
+
+		private void menuitemStartNow_Click(object sender, RoutedEventArgs e)
+		{
+			var fe = sender as FrameworkElement;
+			if (fe == null) return;
+			ApplicationDetails appdet = fe.DataContext as ApplicationDetails;
+			if (appdet == null) return;
+			appdet.StartNow_NotAllowMultipleInstances(true, true);
+		}
 	}
 
 	public class ApplicationDetails : INotifyPropertyChanged
@@ -726,20 +786,46 @@ namespace WindowsStartupManager
 		private static List<ApplicationDetails> ListOfCreatedItems = new List<ApplicationDetails>();
 
 		public SettingsSimple.ApplicationManagerSettings.RunCommand Command;
-		public string ApplicationName { get; private set; }
+		protected string ApplicationName { get; private set; }
 		public string DisplayName { get; private set; }
-		public ApplicationStatusses ApplicationStatus { get; private set; }
-		public string ApplicationStatusString { get { return ApplicationStatus.ToString().InsertSpacesBeforeCamelCase(); } }
-		public string ApplicationFullPath { get; private set; }
-		public string FullpathToProcessExe { get; private set; }//Usually required with Portable apps
+
+		private ApplicationStatusses _applicationstatus;
+		public ApplicationStatusses ApplicationStatus { get { return _applicationstatus; } set { _applicationstatus = value; OnPropertyChanged("ApplicationStatus", "ApplicationStatusString"); } }
+		//protected ApplicationStatusses ApplicationStatus { get; private set; }
+		[DisplayName("Status")]
+		[Description("The current status of the application.")]
+		public string ApplicationStatusString
+		{
+			get
+			{
+				if (ApplicationStatus != ApplicationStatusses.RanSuccessfullyButClosedAgain)
+					return ApplicationStatus.ToString().InsertSpacesBeforeCamelCase();
+				else
+					return "Closed";
+			}
+		}
+		protected string ApplicationFullPath { get; private set; }
+		protected string FullpathToProcessExe { get; private set; }//Usually required with Portable apps
 		private bool ProcessExeDefersFromStartExe { get; set; }
-		public string ApplicationArguments { get; private set; }
+		protected string ApplicationArguments { get; private set; }
+		[DisplayName("Input")]
+		[Description("Wait for user input (mouse or keyboard).")]
 		public bool WaitForUserInput { get; private set; }
+		[DisplayName("Delay")]
+		[Description("Number of seconds to wait after application started.")]
 		public int DelayAfterStartSeconds { get; private set; }
+		[DisplayName("Enabled")]
+		[Description("Whether the application should be started.")]
 		public bool IsEnabled { get; private set; }
+		[DisplayName("Close")]
+		[Description("Wheter the application should be closed when we click 'Quick close...' in the tray icon right-click menu.")]
 		public bool IncludeInQuickClose { get; private set; }
 
+		[DisplayName("Time")]
+		[Description("The time this application was started.")]
 		public DateTime StartupTimeIfRunning { get; private set; }
+		[DisplayName("Running")]
+		[Description("Wheter this application is currently running.")]
 		public bool IsRunning { get { return this.ApplicationStatus == ApplicationStatusses.Running; } }
 
 		private ApplicationDetails()
@@ -809,7 +895,7 @@ namespace WindowsStartupManager
 				exeToKillDefersFromOriginal = false;
 				return originallyStartedExepath;
 			}
-			
+
 			var matchedExeFiles = Directory.GetFiles(appFolderpath, "*.exe", SearchOption.AllDirectories)
 				.Where(path => path.EndsWith(exeFilenameToFind, StringComparison.InvariantCultureIgnoreCase))
 				.ToList();
@@ -1144,31 +1230,54 @@ namespace WindowsStartupManager
 		}
 	}
 
-	public class ApplicationStatusToBrushConverter : IValueConverter
+	public class ApplicationStatusToColorConverter : IValueConverter
 	{
 		public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
 		{
 			if (!(value is ApplicationDetails.ApplicationStatusses))
-				return Brushes.Transparent;
+				return Colors.Transparent;
 
 			switch ((ApplicationDetails.ApplicationStatusses)value)
 			{
 				case ApplicationDetails.ApplicationStatusses.Running:
-					return Brushes.Green;
+					return Colors.Green;
 				case ApplicationDetails.ApplicationStatusses.NotResponding:
-					return Brushes.Orange;
+					return Colors.Orange;
 				case ApplicationDetails.ApplicationStatusses.NotRunning:
-					return Brushes.Gray;
+					return Colors.Transparent;
 				case ApplicationDetails.ApplicationStatusses.RanSuccessfullyButClosedAgain:
-					return Brushes.Magenta;
+					return Colors.Magenta;
 				case ApplicationDetails.ApplicationStatusses.InvalidPath:
-					return Brushes.Red;
+					return Colors.Red;
 				default:
-					return Brushes.Transparent;
+					return Colors.Transparent;
 			}
-		}		
+		}
 
 		public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+		{
+			throw new NotImplementedException();
+		}
+	}
+
+	public class CheckboxTrueAndIsRunningToVisibilityConverter : IMultiValueConverter
+	{
+		public object Convert(object[] values, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+		{
+			if (values.Length != 2)
+				return Visibility.Visible;
+			if (!(values[0] is bool)
+				|| !(values[1] is bool))
+				return Visibility.Visible;
+
+			if ((bool)values[0] == true
+				|| (bool)values[1] == true)
+				return Visibility.Visible;
+			else
+				return Visibility.Collapsed;
+		}
+
+		public object[] ConvertBack(object value, Type[] targetTypes, object parameter, System.Globalization.CultureInfo culture)
 		{
 			throw new NotImplementedException();
 		}
