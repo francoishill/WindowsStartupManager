@@ -148,7 +148,9 @@
                           BorderThickness='1'
                           BorderBrush='#333'
                           RowHeaderWidth='0'
-                          AutoGeneratingColumn='dataGrid1_AutoGeneratingColumn_1'>
+                          Focusable='False'
+                          AutoGeneratingColumn='dataGrid1_AutoGeneratingColumn_1'
+                          SelectedCellsChanged='dataGrid1_SelectedCellsChanged_1'>
                     <DataGrid.Resources>
                         <Style TargetType="{x:Type DataGridColumnHeader}">
                             <Setter Property='Foreground'
@@ -258,7 +260,7 @@
                             <Setter Property='Background'>
                                 <Setter.Value>
                                     <SolidColorBrush Opacity='0.2'
-                                                     Color='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToColorConverter}}' />
+                                                     Color='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToColorConverter}, NotifyOnSourceUpdated=True}' />
                                 </Setter.Value>
                             </Setter>
                             <Setter Property='Opacity'
@@ -325,8 +327,9 @@
                                         VerticalAlignment='Center'
                                         Margin='10 0 0 0'
                                         Background='Transparent'
-                                        Foreground='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToBrushConverter}}'
                                         Click='ApplicationButton_Click'>
+                                        <!--Foreground='{Binding ApplicationStatus, Converter={StaticResource applicationStatusToBrushConverter}}'
+                                        Click='ApplicationButton_Click'>-->
                                     <Button.ToolTip>
                                         <StackPanel Orientation='Vertical'>
                                             <StackPanel Orientation='Horizontal'>

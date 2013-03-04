@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Management;
 using System.Reflection;
 using System.Threading;
@@ -299,8 +300,26 @@ namespace WindowsStartupManager
 					//    runcomms[i].IsEnabled = true;
 				}
 				SettingsSimple.ApplicationManagerSettings.Instance.RunCommands = runcomms;
-				foreach (var comm in runcomms)//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
-					Applications.Add(new ApplicationDetails(comm));
+				foreach (var comm in runcomms)
+				{//SettingsSimple.ApplicationManagerSettings.Instance.RunCommands)
+					var tmpapp = new ApplicationDetails(comm);
+					tmpapp.PropertyChanged += (sn, prop) =>
+					{
+						var wantedProperties = new List<Expression<Func<ApplicationDetails, object>>>();
+						wantedProperties.Add(ms => ms.ApplicationStatus);
+						ReflectionInterop.DoForeachPropertOrField<ApplicationDetails>(
+							sn as ApplicationDetails,
+							wantedProperties,
+							(appdetails, memberInfo, memberValue) =>
+							{
+								if (prop.PropertyName.Equals(memberInfo.Name, StringComparison.InvariantCultureIgnoreCase))
+								{
+								}
+							});
+
+					};
+					Applications.Add(tmpapp);
+				}
 			}
 
 			this.Dispatcher.Invoke((Action)delegate
@@ -775,7 +794,15 @@ namespace WindowsStartupManager
 			if (fe == null) return;
 			ApplicationDetails appdet = fe.DataContext as ApplicationDetails;
 			if (appdet == null) return;
-			appdet.StartNow_NotAllowMultipleInstances(true, true);
+
+			ThreadingInterop.PerformOneArgFunctionSeperateThread<ApplicationDetails>(
+				(applicationDetails) => applicationDetails.StartNow_NotAllowMultipleInstances(true, true),
+				appdet, false);
+		}
+
+		private void dataGrid1_SelectedCellsChanged_1(object sender, SelectedCellsChangedEventArgs e)
+		{
+			dataGrid1.UnselectAll();
 		}
 	}
 
@@ -1143,17 +1170,26 @@ namespace WindowsStartupManager
 						if (proc != null)
 							successfullyRanOnce = true;
 
+						bool alreadySlept = false;
+
 						Process proc2 = null;
 						if (!this.ProcessExeDefersFromStartExe)
-							Thread.Sleep(this.DelayAfterStartSeconds * 1000);
+						{
+							if (proc == null)
+							{
+								alreadySlept = true;
+								Thread.Sleep(this.DelayAfterStartSeconds * 1000);
+							}
+						}
 						else
 						{
 							proc2 = GetProcessForApplication();
 							if (proc2 != null)
 								successfullyRanOnce = true;
-							Thread.Sleep(this.DelayAfterStartSeconds * 1000);
 							if (proc2 == null)
 							{//Try again after delay
+								alreadySlept = true;
+								Thread.Sleep(this.DelayAfterStartSeconds * 1000);
 								proc2 = GetProcessForApplication();
 								if (proc2 != null)
 									successfullyRanOnce = true;
@@ -1161,6 +1197,8 @@ namespace WindowsStartupManager
 						}
 
 						this.UpdateApplicationRunningStatus(true);
+						if (!alreadySlept)
+							Thread.Sleep(this.DelayAfterStartSeconds * 1000);
 
 						ThreadingInterop.PerformOneArgFunctionSeperateThread((arg) =>
 						{
