@@ -57,6 +57,7 @@ namespace WindowsStartupManager
 		{
 			get
 			{
+				//return new DateTime(2013, 03, 19, 07, 32, 30);
 				if (!_systemStartupTime.HasValue)
 				{
 					DateTime tmpStartup;
@@ -102,7 +103,7 @@ namespace WindowsStartupManager
 
 			//Timer to check if must start apps keep this window on top
 			startAppsTimer = new System.Windows.Forms.Timer();
-			startAppsTimer.Interval = (int)TimeSpan.FromMilliseconds(10).TotalMilliseconds;//We set this later to 5 secs
+			startAppsTimer.Interval = (int)TimeSpan.FromMilliseconds(100).TotalMilliseconds;//We set this later to 5 secs
 			startAppsTimer.Tick +=
 				delegate
 				{
@@ -112,7 +113,10 @@ namespace WindowsStartupManager
 							if (!alreadySetTimerTo5secs)
 							{
 								alreadySetTimerTo5secs = true;
-								startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+								this.Dispatcher.Invoke((Action)delegate
+								{
+									startAppsTimer.Interval = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+								});
 							}
 
 							//Dispatcher.Invoke((Action)delegate { OwnBringIntoView(); });
@@ -322,6 +326,7 @@ namespace WindowsStartupManager
 				}
 			}
 
+			//this.Dispatcher.Invoke((Action)delegate
 			this.Dispatcher.Invoke((Action)delegate
 			{
 				listBox1.ItemsSource = Applications;
@@ -333,7 +338,10 @@ namespace WindowsStartupManager
 
 			listAlreadyPopulatedAtLeastOnce = true;
 			if (timerToPopulateList != null)
+			{
+				timerToPopulateList.Stop();
 				timerToPopulateList.Dispose();
+			}
 			timerToPopulateList = null;
 			busyPopulating = false;
 			//});
@@ -371,10 +379,10 @@ namespace WindowsStartupManager
 		}
 
 		private Timer tmpTimerCheckToRestartInMorning;
-		private void Button_Click(object sender, RoutedEventArgs e)
+		/*private void Button_Click(object sender, RoutedEventArgs e)
 		{
 			ExitOrHide();
-		}
+		}*/
 
 		private void ExitOrHide()
 		{
@@ -950,8 +958,14 @@ namespace WindowsStartupManager
 		private static System.Threading.Timer _timerToEnsureHumanFriendlyDatesAlwaysCorrect = new System.Threading.Timer(
 			delegate
 			{
-				foreach (var appItem in ListOfCreatedItems)
-					appItem.OnPropertyChanged("StartupTimeIfRunning");
+				for (int i = 0; i < ListOfCreatedItems.Count; i++)
+				{
+					try
+					{
+						ListOfCreatedItems[i].OnPropertyChanged("StartupTimeIfRunning");
+					}
+					catch { }
+				}
 			},
 			null,
 			TimeSpan.FromSeconds(0),

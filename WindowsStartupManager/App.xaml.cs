@@ -15,16 +15,15 @@ namespace WindowsStartupManager
 	{
 		protected override void OnStartup(StartupEventArgs e)
 		{
-			base.OnStartup(e);
-
-			Application.Current.DispatcherUnhandledException += (s, ev) =>
-			{
-				UserMessages.ShowErrorMessage("Unhandled: " + Environment.NewLine + ev.Exception.Message);
-			};
+			//Application.Current.DispatcherUnhandledException += (s, ev) =>
+			//{
+			//	UserMessages.ShowErrorMessage("Unhandled: " + Environment.NewLine + ev.Exception.Message);
+			//};
 
 			SharedClasses.AutoUpdating.CheckForUpdates_ExceptionHandler();
 			//SharedClasses.AutoUpdating.CheckForUpdates(null, null);
 
+			base.OnStartup(e);
 			WindowsStartupManager.MainWindow mw = new MainWindow();
 			mw.ShowDialog();
 		}
