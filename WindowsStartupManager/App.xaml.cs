@@ -24,7 +24,7 @@ namespace WindowsStartupManager
 			//SharedClasses.AutoUpdating.CheckForUpdates(null, null);
 
 			base.OnStartup(e);
-			WindowsStartupManager.MainWindow mw = new MainWindow();
+			var mw = new MainWindow();
 			mw.ShowDialog();
 		}
 	}
